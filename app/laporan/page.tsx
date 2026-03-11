@@ -55,7 +55,7 @@ export default function LaporanPage() {
                     .select(`
                         *,
                         pegawai:id_pegawai (nama, email),
-                        petugas:id_petugas (nama_petugas),
+                        petugas:id_petugas (nama),
                         detail_peminjaman (
                             jumlah,
                             inventaris:id_inventaris (nama)

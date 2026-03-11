@@ -71,9 +71,9 @@ export default function Peminjaman() {
                     .gt('jumlah', 0)
                     .order('nama');
 
-                // Fetch users (pegawai)
+                // Fetch users (pegawai) from tb_user
                 const { data: usrData } = await supabase
-                    .from('users')
+                    .from('tb_user')
                     .select('id, nama, email')
                     .eq('role', 'pegawai');
 

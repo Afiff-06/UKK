@@ -41,14 +41,9 @@ export default function Dashboard() {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                // Fetch users count
-                const { count: usersCount } = await supabase
-                    .from('users')
-                    .select('*', { count: 'exact', head: true });
-
-                // Fetch petugas count
-                const { count: petugasCount } = await supabase
-                    .from('petugas')
+                // Fetch total users count from tb_user
+                const { count: totalUsersCount } = await supabase
+                    .from('tb_user')
                     .select('*', { count: 'exact', head: true });
 
                 // Fetch inventaris count
@@ -84,7 +79,7 @@ export default function Dashboard() {
                 });
 
                 setStats({
-                    totalPengguna: (usersCount || 0) + (petugasCount || 0),
+                    totalPengguna: totalUsersCount || 0,
                     totalBarang: inventarisCount || 0,
                     totalDipinjam: dipinjam.length,
                     totalTerlambat: terlambat.length,

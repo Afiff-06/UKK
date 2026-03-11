@@ -23,28 +23,11 @@ interface UserData {
     nip?: string;
 }
 
-interface PetugasData {
-    id_petugas: string;
-    nama_petugas: string;
-    username: string;
-    level_id: number;
-    level?: { nama_level: string };
-}
-
-type CombinedUser = {
-    id: string;
-    nama: string;
-    username: string;
-    email?: string;
-    role: string;
-    type: 'user' | 'petugas';
-};
-
 export default function ManajemenPengguna() {
-    const [users, setUsers] = useState<CombinedUser[]>([]);
+    const [users, setUsers] = useState<UserData[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
-    const [editUser, setEditUser] = useState<CombinedUser | null>(null);
+    const [editUser, setEditUser] = useState<UserData | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [filterRole, setFilterRole] = useState("");
 
@@ -62,47 +45,14 @@ export default function ManajemenPengguna() {
     const fetchUsers = async () => {
         setLoading(true);
         try {
-            // Fetch pegawai/users
-            const { data: usersData, error: usersError } = await supabase
-                .from('users')
-                .select('*');
+            const { data, error } = await supabase
+                .from('tb_user')
+                .select('id, nama, username, email, role, nip')
+                .order('role')
+                .order('nama');
 
-            // Fetch petugas (admin/operator)
-            const { data: petugasData, error: petugasError } = await supabase
-                .from('petugas')
-                .select(`
-                    *,
-                    level:level_id (nama_level)
-                `);
-
-            const combined: CombinedUser[] = [];
-
-            if (usersData) {
-                usersData.forEach(user => {
-                    combined.push({
-                        id: user.id,
-                        nama: user.nama,
-                        username: user.username,
-                        email: user.email,
-                        role: user.role || 'pegawai',
-                        type: 'user',
-                    });
-                });
-            }
-
-            if (petugasData) {
-                petugasData.forEach(petugas => {
-                    combined.push({
-                        id: petugas.id_petugas,
-                        nama: petugas.nama_petugas,
-                        username: petugas.username,
-                        role: (petugas.level as any)?.nama_level || 'admin',
-                        type: 'petugas',
-                    });
-                });
-            }
-
-            setUsers(combined);
+            if (error) throw error;
+            setUsers(data || []);
         } catch (error) {
             console.error('Error fetching users:', error);
         } finally {
@@ -114,98 +64,88 @@ export default function ManajemenPengguna() {
         fetchUsers();
     }, []);
 
+    const callManageUsers = async (body: object) => {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(
+            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-users`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token}`,
+                    'apikey': process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!,
+                },
+                body: JSON.stringify(body),
+            }
+        );
+        const result = await res.json();
+        if (!res.ok || result.error) {
+            throw new Error(result.error || 'Request failed');
+        }
+        return result;
+    };
+
     const handleSubmit = async () => {
         try {
             if (editUser) {
-                // Update existing user
-                if (editUser.type === 'petugas') {
-                    const levelMap: Record<string, number> = { admin: 1, operator: 2, pegawai: 3 };
-                    const { error } = await supabase
-                        .from('petugas')
-                        .update({
-                            nama_petugas: formData.nama,
-                            username: formData.username,
-                            level_id: levelMap[formData.role] || 1,
-                        })
-                        .eq('id_petugas', editUser.id);
-                    if (error) throw error;
-                } else {
-                    const { error } = await supabase
-                        .from('users')
-                        .update({
-                            nama: formData.nama,
-                            username: formData.username,
-                            email: formData.email,
-                            role: formData.role,
-                            nip: formData.nip,
-                        })
-                        .eq('id', editUser.id);
-                    if (error) throw error;
-                }
+                // Update existing user via Edge Function
+                await callManageUsers({
+                    action: 'update',
+                    userId: editUser.id,
+                    userData: {
+                        nama: formData.nama,
+                        username: formData.username,
+                        email: formData.email,
+                        role: formData.role,
+                        nip: formData.nip,
+                        password: formData.password || undefined,
+                    },
+                });
             } else {
-                // Create new user
-                if (formData.role === 'admin' || formData.role === 'operator') {
-                    // Create petugas
-                    const levelMap: Record<string, number> = { admin: 1, operator: 2 };
-                    const { error } = await supabase
-                        .from('petugas')
-                        .insert({
-                            nama_petugas: formData.nama,
-                            username: formData.username,
-                            password: formData.password, // Note: In production, hash this
-                            level_id: levelMap[formData.role],
-                        });
-                    if (error) throw error;
-                } else {
-                    // Create user in auth first, then in users table
-                    // For demo purposes, just create in users table
-                    const { error } = await supabase
-                        .from('users')
-                        .insert({
-                            nama: formData.nama,
-                            username: formData.username,
-                            email: formData.email,
-                            role: formData.role,
-                            nip: formData.nip,
-                        });
-                    if (error) throw error;
+                // Create new user via Edge Function (creates auth + tb_user)
+                if (!formData.email) {
+                    alert('Email wajib diisi untuk membuat pengguna baru');
+                    return;
                 }
+                await callManageUsers({
+                    action: 'create',
+                    userData: {
+                        nama: formData.nama,
+                        username: formData.username,
+                        email: formData.email,
+                        role: formData.role,
+                        password: formData.password,
+                        nip: formData.nip,
+                    },
+                });
             }
 
             setShowModal(false);
             setEditUser(null);
             resetForm();
             fetchUsers();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error saving user:', error);
-            alert('Gagal menyimpan pengguna. Pastikan username/email belum digunakan.');
+            alert(error.message || 'Gagal menyimpan pengguna.');
         }
     };
 
-    const handleDelete = async (user: CombinedUser) => {
+    const handleDelete = async (user: UserData) => {
         if (!confirm(`Hapus pengguna "${user.nama}"?`)) return;
 
         try {
-            if (user.type === 'petugas') {
-                const { error } = await supabase
-                    .from('petugas')
-                    .delete()
-                    .eq('id_petugas', user.id);
-                if (error) throw error;
-            } else {
-                const { error } = await supabase
-                    .from('users')
-                    .delete()
-                    .eq('id', user.id);
-                if (error) throw error;
-            }
+            await callManageUsers({
+                action: 'delete',
+                userId: user.id,
+            });
             fetchUsers();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error deleting user:', error);
+            alert(error.message || 'Gagal menghapus pengguna.');
         }
     };
 
-    const handleEdit = (user: CombinedUser) => {
+    const handleEdit = (user: UserData) => {
         setEditUser(user);
         setFormData({
             nama: user.nama,
@@ -213,7 +153,7 @@ export default function ManajemenPengguna() {
             email: user.email || "",
             role: user.role,
             password: "",
-            nip: "",
+            nip: user.nip || "",
         });
         setShowModal(true);
     };
@@ -251,8 +191,6 @@ export default function ManajemenPengguna() {
                 return <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">Operator</span>;
             case 'pegawai':
                 return <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">Pegawai</span>;
-            case 'petugas':
-                return <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm">Petugas</span>;
             default:
                 return <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">{role}</span>;
         }
@@ -327,7 +265,7 @@ export default function ManajemenPengguna() {
 
                                     <tbody className="divide-y">
                                         {filteredUsers.map((user) => (
-                                            <tr key={`${user.type}-${user.id}`} className="hover:bg-gray-50">
+                                            <tr key={user.id} className="hover:bg-gray-50">
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-3">
                                                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-medium">
@@ -410,18 +348,16 @@ export default function ManajemenPengguna() {
                                     />
                                 </div>
 
-                                {(formData.role === 'pegawai' || formData.role === 'petugas') && (
-                                    <div>
-                                        <label className="block text-sm text-gray-500 mb-1">Email</label>
-                                        <input
-                                            type="email"
-                                            className="w-full border rounded-xl px-4 py-3"
-                                            placeholder="email@example.com"
-                                            value={formData.email}
-                                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                        />
-                                    </div>
-                                )}
+                                <div>
+                                    <label className="block text-sm text-gray-500 mb-1">Email</label>
+                                    <input
+                                        type="email"
+                                        className="w-full border rounded-xl px-4 py-3"
+                                        placeholder="email@example.com"
+                                        value={formData.email}
+                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    />
+                                </div>
 
                                 <div>
                                     <label className="block text-sm text-gray-500 mb-1">Peran</label>
@@ -429,7 +365,6 @@ export default function ManajemenPengguna() {
                                         className="w-full border rounded-xl px-4 py-3"
                                         value={formData.role}
                                         onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                                        disabled={!!editUser}
                                     >
                                         <option value="admin">Admin</option>
                                         <option value="operator">Operator</option>
@@ -437,18 +372,28 @@ export default function ManajemenPengguna() {
                                     </select>
                                 </div>
 
-                                {!editUser && (formData.role === 'admin' || formData.role === 'operator') && (
-                                    <div>
-                                        <label className="block text-sm text-gray-500 mb-1">Password</label>
-                                        <input
-                                            type="password"
-                                            className="w-full border rounded-xl px-4 py-3"
-                                            placeholder="Password"
-                                            value={formData.password}
-                                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                        />
-                                    </div>
-                                )}
+                                <div>
+                                    <label className="block text-sm text-gray-500 mb-1">
+                                        Password {editUser ? '(kosongkan jika tidak diubah)' : ''}
+                                    </label>
+                                    <input
+                                        type="password"
+                                        className="w-full border rounded-xl px-4 py-3"
+                                        placeholder={editUser ? "Kosongkan jika tidak diubah" : "Password"}
+                                        value={formData.password}
+                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm text-gray-500 mb-1">NIP</label>
+                                    <input
+                                        className="w-full border rounded-xl px-4 py-3"
+                                        placeholder="NIP (opsional)"
+                                        value={formData.nip}
+                                        onChange={(e) => setFormData({ ...formData, nip: e.target.value })}
+                                    />
+                                </div>
                             </div>
 
                             <div className="flex justify-end gap-3 mt-6">
@@ -464,7 +409,7 @@ export default function ManajemenPengguna() {
                                 </button>
                                 <button
                                     onClick={handleSubmit}
-                                    disabled={!formData.nama || !formData.username}
+                                    disabled={!formData.nama || !formData.username || !formData.email || (!editUser && !formData.password)}
                                     className="px-5 py-2 bg-blue-600 text-white rounded-xl shadow hover:bg-blue-700 transition-colors disabled:opacity-50"
                                 >
                                     {editUser ? 'Simpan Perubahan' : 'Tambah Pengguna'}

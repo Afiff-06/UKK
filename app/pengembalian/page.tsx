@@ -21,7 +21,7 @@ interface Peminjaman {
     tanggal_kembali: string | null;
     status: string;
     pegawai?: { nama: string; email: string };
-    petugas?: { nama_petugas: string };
+    petugas?: { nama: string };
     detail_peminjaman: {
         id: string;
         jumlah: number;
@@ -46,7 +46,7 @@ export default function PengembalianPage() {
                 .select(`
                     *,
                     pegawai:id_pegawai (nama, email),
-                    petugas:id_petugas (nama_petugas),
+                    petugas:id_petugas (nama),
                     detail_peminjaman (
                         id,
                         jumlah,
