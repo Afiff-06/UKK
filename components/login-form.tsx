@@ -44,7 +44,11 @@ export function LoginForm({
 
           // Sign in dengan Supabase Auth menggunakan service account atau dummy
           // Untuk sekarang, langsung redirect
-          router.push("/dashboard");
+          if (petugas.level_id === 1) {
+            router.push("/admin/dashboard");
+          } else {
+            router.push("/operator/dashboard");
+          }
           return;
         } else {
           throw new Error("Username atau password salah");
@@ -63,7 +67,7 @@ export function LoginForm({
           throw new Error("Email atau password salah");
         }
 
-        router.push("/dashboard");
+        router.push("/pegawai/dashboard");
         return;
       }
 

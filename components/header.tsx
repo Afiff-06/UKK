@@ -28,7 +28,11 @@ export default function Header({ title, onMenuClick }: HeaderProps) {
                         <Menu className="text-gray-600" />
                     </button>
                 )}
-                <span className="text-lg font-semibold text-gray-700">{title}</span>
+                <div className="flex items-center gap-3">
+                    <span className="text-xl font-bold text-blue-600 hidden md:inline-block">Manajemen Aset</span>
+                    <span className="text-gray-300 hidden md:inline-block">|</span>
+                    <span className="text-lg font-semibold text-gray-700">{title}</span>
+                </div>
             </div>
 
             <div className="flex items-center gap-4">

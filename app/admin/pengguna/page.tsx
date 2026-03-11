@@ -9,7 +9,7 @@ import {
     Trash2,
     Users,
 } from "lucide-react";
-import SidebarUtama from "@/components/sidebar-utama";
+
 import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
 import LoadingSpinner from "@/components/loading-spinner";
@@ -259,7 +259,7 @@ export default function ManajemenPengguna() {
     };
 
     return (
-        <SidebarUtama>
+        
             <div className="min-h-screen bg-[#f5f7fb] w-full">
                 <main className="flex-1 flex flex-col">
                     <Header title="Manajemen Pengguna" />
@@ -321,6 +321,7 @@ export default function ManajemenPengguna() {
                                             <th className="px-6 py-4 text-left">Username</th>
                                             <th className="px-6 py-4 text-left">Email</th>
                                             <th className="px-6 py-4 text-left">Peran</th>
+                                            <th className="px-6 py-4 text-left">Status</th>
                                             <th className="px-6 py-4 text-left">Aksi</th>
                                         </tr>
                                     </thead>
@@ -339,6 +340,9 @@ export default function ManajemenPengguna() {
                                                 <td className="px-6 py-4 text-gray-600">{user.username}</td>
                                                 <td className="px-6 py-4 text-gray-600">{user.email || '-'}</td>
                                                 <td className="px-6 py-4">{getRoleBadge(user.role)}</td>
+                                                <td className="px-6 py-4">
+                                                    <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">Aktif</span>
+                                                </td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex gap-2">
                                                         <button
@@ -474,6 +478,6 @@ export default function ManajemenPengguna() {
                     </div>
                 )}
             </div>
-        </SidebarUtama>
+        
     );
 }

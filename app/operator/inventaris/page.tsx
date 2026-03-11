@@ -10,7 +10,7 @@ import {
     Package,
     AlertCircle,
 } from "lucide-react";
-import SidebarUtama from "@/components/sidebar-utama";
+
 import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
 import LoadingSpinner from "@/components/loading-spinner";
@@ -205,7 +205,7 @@ export default function InventarisPage() {
     };
 
     return (
-        <SidebarUtama>
+        
             <div className="min-h-screen bg-[#f5f7fb] w-full">
                 <main className="flex-1 flex flex-col">
                     <Header title="Inventaris Barang" />
@@ -459,6 +459,6 @@ export default function InventarisPage() {
                     </div>
                 )}
             </div>
-        </SidebarUtama>
+        
     );
 }
