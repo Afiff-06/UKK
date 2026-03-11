@@ -33,9 +33,26 @@ export function LoginForm({
         throw new Error("Email atau password salah");
       }
 
-      // Auth berhasil - redirect ke dashboard
-      // Auth context akan otomatis mendeteksi session via onAuthStateChange
-      router.push("/dashboard");
+      // Fetch role dari tb_user
+      const { data: userData, error: userError } = await supabase
+        .from('tb_user')
+        .select('role')
+        .eq('id', data.user.id)
+        .single();
+
+      if (userError || !userData) {
+          throw new Error("Gagal memuat profil pengguna");
+      }
+
+      // Redirect berdasarkan role
+      const role = userData.role;
+      if (role === 'admin') {
+          router.push("/admin/dashboard");
+      } else if (role === 'operator') {
+          router.push("/operator/dashboard");
+      } else {
+          router.push("/pegawai/dashboard");
+      }
 
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "Terjadi kesalahan");

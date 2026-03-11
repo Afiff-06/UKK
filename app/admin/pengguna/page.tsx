@@ -9,7 +9,7 @@ import {
     Trash2,
     Users,
 } from "lucide-react";
-import SidebarUtama from "@/components/sidebar-utama";
+
 import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
 import LoadingSpinner from "@/components/loading-spinner";
@@ -197,7 +197,7 @@ export default function ManajemenPengguna() {
     };
 
     return (
-        <SidebarUtama>
+        
             <div className="min-h-screen bg-[#f5f7fb] w-full">
                 <main className="flex-1 flex flex-col">
                     <Header title="Manajemen Pengguna" />
@@ -419,6 +419,6 @@ export default function ManajemenPengguna() {
                     </div>
                 )}
             </div>
-        </SidebarUtama>
+        
     );
 }

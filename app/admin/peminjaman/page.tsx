@@ -12,7 +12,7 @@ import {
     X,
     Package,
 } from "lucide-react";
-import SidebarUtama from "@/components/sidebar-utama";
+
 import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -209,16 +209,16 @@ export default function Peminjaman() {
 
     if (loading) {
         return (
-            <SidebarUtama>
+            
                 <div className="min-h-screen bg-[#f5f7fb] w-full flex items-center justify-center">
                     <LoadingSpinner size="lg" />
                 </div>
-            </SidebarUtama>
+            
         );
     }
 
     return (
-        <SidebarUtama>
+        
             <div className="min-h-screen bg-[#f5f7fb] w-full">
                 <main className="flex-1 flex flex-col">
                     <Header title="Peminjaman" />
@@ -462,7 +462,7 @@ export default function Peminjaman() {
                     </div>
                 </main>
             </div>
-        </SidebarUtama>
+        
     );
 }
 
