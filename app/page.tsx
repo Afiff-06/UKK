@@ -7,15 +7,28 @@ import { FullPageLoader } from "@/components/loading-spinner";
 
 export default function Home() {
   const router = useRouter();
-  const supabase = createClient();
 
   useEffect(() => {
     const checkAuth = async () => {
+      const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
 
       if (session) {
-        // User is logged in, redirect to dashboard
-        router.replace("/dashboard");
+        // Fetch user role to redirect to the correct dashboard
+        const { data: userData } = await supabase
+          .from('tb_user')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+
+        const role = userData?.role;
+        if (role === 'admin') {
+          router.replace("/admin/dashboard");
+        } else if (role === 'operator') {
+          router.replace("/operator/dashboard");
+        } else {
+          router.replace("/pegawai/dashboard");
+        }
       } else {
         // User is not logged in, redirect to login
         router.replace("/auth/login");
@@ -23,7 +36,7 @@ export default function Home() {
     };
 
     checkAuth();
-  }, [router, supabase]);
+  }, [router]);
 
   return <FullPageLoader />;
 }
