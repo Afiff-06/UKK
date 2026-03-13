@@ -16,7 +16,7 @@ import { useAuth } from "@/lib/auth-context";
 import { FullPageLoader } from "./loading-spinner";
 
 const adminMenu = [
-    { icon: <LayoutDashboard />, label: "Dashboard", path: "/admin/dashboard" },
+    { icon: <LayoutDashboard />, label: "Beranda", path: "/admin/dashboard" },
     { icon: <Users />, label: "Manajemen Pengguna", path: "/admin/pengguna" },
     { icon: <BookOpen />, label: "Peminjaman", path: "/admin/peminjaman" },
     { icon: <RotateCcw />, label: "Pengembalian", path: "/admin/pengembalian" },
@@ -41,8 +41,8 @@ export default function AdminSidebar({ children }: { children: React.ReactNode }
                             <Package className="text-white" size={20} />
                         </div>
                         <div>
-                            <h1 className="font-bold text-lg text-gray-800">Manajemen Aset</h1>
-                            <p className="text-xs text-gray-500">Administrator</p>
+                            <h1 className="font-bold text-lg text-gray-800">Inventaris</h1>
+                            <p className="text-xs text-gray-500">Admin</p>
                         </div>
                     </div>
                 </div>
@@ -58,16 +58,6 @@ export default function AdminSidebar({ children }: { children: React.ReactNode }
                         />
                     ))}
                 </nav>
-
-                <div className="p-4 border-t">
-                    <button
-                        onClick={logout}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-gray-600 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
-                    >
-                        <LogOut size={20} />
-                        <span>Logout</span>
-                    </button>
-                </div>
             </aside>
             {children}
         </div>

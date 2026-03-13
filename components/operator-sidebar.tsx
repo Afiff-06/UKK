@@ -14,7 +14,7 @@ import { useAuth } from "@/lib/auth-context";
 import { FullPageLoader } from "./loading-spinner";
 
 const operatorMenu = [
-    { icon: <LayoutDashboard />, label: "Dashboard", path: "/operator/dashboard" },
+    { icon: <LayoutDashboard />, label: "Beranda", path: "/operator/dashboard" },
     { icon: <Package />, label: "Inventaris Barang", path: "/operator/inventaris" },
     { icon: <BookOpen />, label: "Peminjaman", path: "/operator/peminjaman" },
     { icon: <RotateCcw />, label: "Pengembalian", path: "/operator/pengembalian" },
