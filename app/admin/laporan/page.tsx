@@ -6,377 +6,409 @@ import {
     Download,
     Calendar,
     Filter,
-    Printer,
     BarChart3,
     TrendingUp,
     Package,
+    AlertTriangle,
+    CheckCircle,
+    Clock,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 
 import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
 import LoadingSpinner from "@/components/loading-spinner";
 
-interface ReportData {
-    totalPeminjaman: number;
-    totalDikembalikan: number;
-    totalTerlambat: number;
-    totalBarang: number;
-    peminjamanList: any[];
-}
-
 export default function LaporanPage() {
-    const [loading, setLoading] = useState(false);
-    const [reportData, setReportData] = useState<ReportData | null>(null);
-    const [startDate, setStartDate] = useState("");
-    const [endDate, setEndDate] = useState("");
-    const [reportType, setReportType] = useState<'peminjaman' | 'inventaris'>('peminjaman');
-    const [initialized, setInitialized] = useState(false);
+    const [activeTab, setActiveTab] = useState<'inventaris' | 'peminjaman'>('inventaris');
 
-    // Initialize dates on client side to avoid Next.js 16 prerender issues
+    // Inventaris state
+    const [inventarisList, setInventarisList] = useState<any[]>([]);
+    const [loadingInventaris, setLoadingInventaris] = useState(true);
+
+    // Peminjaman state
+    const [peminjamanList, setPeminjamanList] = useState<any[]>([]);
+    const [loadingPeminjaman, setLoadingPeminjaman] = useState(false);
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [peminjamanLoaded, setPeminjamanLoaded] = useState(false);
+
+    const supabase = createClient();
+
+    // Set default dates (client-side only)
     useEffect(() => {
         const today = new Date();
         const lastMonth = new Date();
         lastMonth.setMonth(lastMonth.getMonth() - 1);
-
         setEndDate(today.toISOString().split('T')[0]);
         setStartDate(lastMonth.toISOString().split('T')[0]);
-        setInitialized(true);
     }, []);
 
-    const supabase = createClient();
+    // Auto-load inventaris on mount
+    useEffect(() => {
+        fetchInventaris();
+    }, []);
 
-    const generateReport = async () => {
-        setLoading(true);
+    const fetchInventaris = async () => {
+        setLoadingInventaris(true);
         try {
-            if (reportType === 'peminjaman') {
-                // Fetch peminjaman data
-                const { data: peminjaman, error } = await supabase
-                    .from('peminjaman')
-                    .select(`
-                        *,
-                        pegawai:id_pegawai (nama, email),
-                        petugas:id_petugas (nama),
-                        detail_peminjaman (
-                            jumlah,
-                            inventaris:id_inventaris (nama)
-                        )
-                    `)
-                    .gte('tanggal_pinjam', startDate)
-                    .lte('tanggal_pinjam', endDate)
-                    .order('tanggal_pinjam', { ascending: false });
+            const { data, error } = await supabase
+                .from('inventaris')
+                .select(`*, jenis:id_jenis (nama_jenis), ruang:id_ruang (nama_ruang)`)
+                .order('kode_inventaris', { ascending: true });
 
-                if (error) throw error;
-
-                const totalPeminjaman = peminjaman?.length || 0;
-                const totalDikembalikan = peminjaman?.filter(p => p.status === 'dikembalikan').length || 0;
-                const totalTerlambat = peminjaman?.filter(p => {
-                    if (p.status === 'dikembalikan') return false;
-                    const borrowed = new Date(p.tanggal_pinjam);
-                    const today = new Date();
-                    return (today.getTime() - borrowed.getTime()) / (1000 * 60 * 60 * 24) > 7;
-                }).length || 0;
-
-                setReportData({
-                    totalPeminjaman,
-                    totalDikembalikan,
-                    totalTerlambat,
-                    totalBarang: 0,
-                    peminjamanList: peminjaman || [],
-                });
-            } else {
-                // Fetch inventaris data
-                const { data: inventaris, error } = await supabase
-                    .from('inventaris')
-                    .select(`
-                        *,
-                        jenis:id_jenis (nama_jenis),
-                        ruang:id_ruang (nama_ruang)
-                    `)
-                    .order('kode_inventaris', { ascending: true });
-
-                if (error) throw error;
-
-                setReportData({
-                    totalPeminjaman: 0,
-                    totalDikembalikan: 0,
-                    totalTerlambat: 0,
-                    totalBarang: inventaris?.length || 0,
-                    peminjamanList: inventaris || [],
-                });
-            }
-        } catch (error) {
-            console.error('Error generating report:', error);
+            if (error) throw error;
+            setInventarisList(data || []);
+        } catch (err) {
+            console.error('Error fetching inventaris:', err);
         } finally {
-            setLoading(false);
+            setLoadingInventaris(false);
         }
     };
 
-    const handlePrint = () => {
-        window.print();
+    const fetchPeminjaman = async () => {
+        if (!startDate || !endDate) return;
+        setLoadingPeminjaman(true);
+        try {
+            const { data, error } = await supabase
+                .from('peminjaman')
+                .select(`
+                    *,
+                    pegawai:id_pegawai (nama, email),
+                    petugas:id_petugas (nama),
+                    detail_peminjaman (
+                        jumlah,
+                        inventaris:id_inventaris (nama)
+                    )
+                `)
+                .eq('status', 'dikembalikan')
+                .gte('tanggal_pinjam', startDate)
+                .lte('tanggal_pinjam', endDate)
+                .order('tanggal_pinjam', { ascending: false });
+
+            if (error) throw error;
+            setPeminjamanList(data || []);
+            setPeminjamanLoaded(true);
+        } catch (err) {
+            console.error('Error fetching peminjaman:', err);
+        } finally {
+            setLoadingPeminjaman(false);
+        }
     };
 
-    const handleExportCSV = () => {
-        if (!reportData) return;
+    // ─── Excel Export ───────────────────────────────────────────────────────────
+    const handleExportExcel = () => {
+        let wb: XLSX.WorkBook;
+        let filename: string;
 
-        let csvContent = '';
+        if (activeTab === 'inventaris') {
+            const rows = inventarisList.map((item, i) => ({
+                'No': i + 1,
+                'Kode': `INV-${String(item.kode_inventaris).padStart(4, '0')}`,
+                'Nama Barang': item.nama,
+                'Jenis': item.jenis?.nama_jenis || '-',
+                'Ruang': item.ruang?.nama_ruang || '-',
+                'Jumlah': item.jumlah,
+                'Kondisi': item.kondisi,
+                'Keterangan': item.keterangan || '-',
+            }));
 
-        if (reportType === 'peminjaman') {
-            csvContent = 'No,Peminjam,Barang,Tanggal Pinjam,Status\n';
-            reportData.peminjamanList.forEach((item, index) => {
-                const barang = item.detail_peminjaman?.map((d: any) => d.inventaris?.nama).join('; ') || '-';
-                csvContent += `${index + 1},"${item.pegawai?.nama || '-'}","${barang}",${item.tanggal_pinjam},${item.status}\n`;
-            });
+            const ws = XLSX.utils.json_to_sheet(rows);
+            ws['!cols'] = [
+                { wch: 5 }, { wch: 12 }, { wch: 30 }, { wch: 20 },
+                { wch: 20 }, { wch: 8 }, { wch: 15 }, { wch: 30 },
+            ];
+            wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Inventaris');
+            filename = `laporan_inventaris_${new Date().toISOString().split('T')[0]}.xlsx`;
+
         } else {
-            csvContent = 'Kode,Nama Barang,Jenis,Ruang,Jumlah,Kondisi\n';
-            reportData.peminjamanList.forEach((item) => {
-                csvContent += `INV-${String(item.kode_inventaris).padStart(4, '0')},"${item.nama}","${item.jenis?.nama_jenis || '-'}","${item.ruang?.nama_ruang || '-'}",${item.jumlah},${item.kondisi}\n`;
-            });
+            const rows = peminjamanList.map((item, i) => ({
+                'No': i + 1,
+                'Peminjam': item.pegawai?.nama || '-',
+                'Email': item.pegawai?.email || '-',
+                'Barang': item.detail_peminjaman?.map((d: any) => `${d.inventaris?.nama} (x${d.jumlah})`).join(', ') || '-',
+                'Tanggal Pinjam': new Date(item.tanggal_pinjam).toLocaleDateString('id-ID'),
+                'Tanggal Kembali': item.tanggal_kembali ? new Date(item.tanggal_kembali).toLocaleDateString('id-ID') : '-',
+                'Status': item.status,
+                'Petugas': item.petugas?.nama || '-',
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(rows);
+            ws['!cols'] = [
+                { wch: 5 }, { wch: 25 }, { wch: 30 }, { wch: 40 },
+                { wch: 18 }, { wch: 18 }, { wch: 15 }, { wch: 20 },
+            ];
+            wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Peminjaman');
+            filename = `laporan_peminjaman_${startDate}_sd_${endDate}.xlsx`;
         }
 
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `laporan_${reportType}_${startDate}_${endDate}.csv`;
-        link.click();
+        XLSX.writeFile(wb, filename);
     };
+
+    // ─── Helpers ────────────────────────────────────────────────────────────────
+    const getKondisiBadge = (kondisi: string) => {
+        const map: Record<string, string> = {
+            'Baik': 'bg-green-100 text-green-700',
+            'Rusak Ringan': 'bg-yellow-100 text-yellow-700',
+            'Rusak Berat': 'bg-red-100 text-red-700',
+        };
+        return map[kondisi] || 'bg-gray-100 text-gray-700';
+    };
+
+    const getStatusBadge = (status: string) => {
+        const map: Record<string, { cls: string; label: string }> = {
+            'dikembalikan': { cls: 'bg-green-100 text-green-700', label: 'Dikembalikan' },
+            'disetujui':    { cls: 'bg-blue-100 text-blue-700',   label: 'Dipinjam' },
+            'konfirmasi':   { cls: 'bg-indigo-100 text-indigo-700', label: 'Konfirmasi' },
+            'pending':      { cls: 'bg-yellow-100 text-yellow-700', label: 'Pending' },
+            'ditolak':      { cls: 'bg-red-100 text-red-700',    label: 'Ditolak' },
+        };
+        const s = map[status] || { cls: 'bg-gray-100 text-gray-700', label: status };
+        return <span className={`px-2 py-1 rounded text-xs font-medium ${s.cls}`}>{s.label}</span>;
+    };
+
+    const peminjamanStats = {
+        total: peminjamanList.length,
+        dikembalikan: peminjamanList.filter(p => p.status === 'dikembalikan').length,
+        aktif: peminjamanList.filter(p => p.status === 'disetujui').length,
+    };
+
+    const canExport = activeTab === 'inventaris'
+        ? inventarisList.length > 0
+        : peminjamanLoaded && peminjamanList.length > 0;
 
     return (
-        
-            <div className="min-h-screen bg-[#f5f7fb] w-full">
-                <main className="flex-1 flex flex-col">
-                    <Header title="Laporan" />
+        <div className="min-h-screen bg-[#f5f7fb] w-full">
+            <main className="flex-1 flex flex-col">
+                <Header title="Laporan" />
 
-                    <div className="p-8">
-                        <h1 className="text-3xl font-bold mb-2 text-gray-800">Generate Laporan</h1>
-                        <p className="text-gray-500 mb-6">Buat laporan peminjaman dan inventaris</p>
+                <div className="p-8">
+                    <div className="flex justify-between items-start mb-6">
+                        <div>
+                            <h1 className="text-3xl font-bold mb-1 text-gray-800">Laporan</h1>
+                            <p className="text-gray-500">Export data inventaris dan peminjaman ke Excel</p>
+                        </div>
 
-                        {/* Filter Section */}
-                        <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
-                            <h2 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                                <Filter size={18} /> Filter Laporan
-                            </h2>
+                        {/* Export Button */}
+                        <button
+                            onClick={handleExportExcel}
+                            disabled={!canExport}
+                            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-5 py-3 rounded-xl shadow transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            <Download size={18} />
+                            Export Excel
+                        </button>
+                    </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    {/* Tabs */}
+                    <div className="flex gap-2 mb-6">
+                        {([
+                            { key: 'inventaris', label: 'Inventaris', icon: <Package size={16} /> },
+                            { key: 'peminjaman',  label: 'Peminjaman', icon: <FileText size={16} /> },
+                        ] as const).map(tab => (
+                            <button
+                                key={tab.key}
+                                onClick={() => setActiveTab(tab.key)}
+                                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                                    activeTab === tab.key
+                                        ? 'bg-white shadow-md text-blue-600 border border-blue-100'
+                                        : 'text-gray-500 hover:bg-white/60'
+                                }`}
+                            >
+                                {tab.icon} {tab.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* ── INVENTARIS TAB ── */}
+                    {activeTab === 'inventaris' && (
+                        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                            <div className="p-5 border-b flex items-center justify-between">
                                 <div>
-                                    <label className="block text-sm text-gray-500 mb-1">Jenis Laporan</label>
-                                    <select
-                                        value={reportType}
-                                        onChange={(e) => setReportType(e.target.value as 'peminjaman' | 'inventaris')}
-                                        className="w-full border rounded-xl px-4 py-3"
-                                    >
-                                        <option value="peminjaman">Laporan Peminjaman</option>
-                                        <option value="inventaris">Laporan Inventaris</option>
-                                    </select>
+                                    <h2 className="font-semibold text-gray-800">Data Inventaris Barang</h2>
+                                    <p className="text-sm text-gray-500">Total: {inventarisList.length} barang</p>
                                 </div>
+                            </div>
 
-                                {reportType === 'peminjaman' && (
-                                    <>
-                                        <div>
-                                            <label className="block text-sm text-gray-500 mb-1">Tanggal Mulai</label>
-                                            <div className="relative">
-                                                <input
-                                                    type="date"
-                                                    value={startDate}
-                                                    onChange={(e) => setStartDate(e.target.value)}
-                                                    className="w-full border rounded-xl px-4 py-3"
-                                                />
-                                            </div>
-                                        </div>
+                            {loadingInventaris ? (
+                                <div className="p-12"><LoadingSpinner /></div>
+                            ) : inventarisList.length === 0 ? (
+                                <div className="p-12 text-center">
+                                    <Package className="mx-auto text-gray-300 mb-3" size={48} />
+                                    <p className="text-gray-500">Tidak ada data inventaris</p>
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead className="bg-gray-50 text-gray-500 text-sm">
+                                            <tr>
+                                                <th className="px-5 py-3 text-left">No</th>
+                                                <th className="px-5 py-3 text-left">Kode</th>
+                                                <th className="px-5 py-3 text-left">Nama Barang</th>
+                                                <th className="px-5 py-3 text-left">Jenis</th>
+                                                <th className="px-5 py-3 text-left">Ruang</th>
+                                                <th className="px-5 py-3 text-center">Jumlah</th>
+                                                <th className="px-5 py-3 text-left">Kondisi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y">
+                                            {inventarisList.map((item, i) => (
+                                                <tr key={item.id_inventaris} className="hover:bg-gray-50">
+                                                    <td className="px-5 py-3 text-gray-500 text-sm">{i + 1}</td>
+                                                    <td className="px-5 py-3 font-mono text-sm text-gray-600">
+                                                        INV-{String(item.kode_inventaris).padStart(4, '0')}
+                                                    </td>
+                                                    <td className="px-5 py-3 font-medium text-gray-800">{item.nama}</td>
+                                                    <td className="px-5 py-3 text-gray-600">{item.jenis?.nama_jenis || '-'}</td>
+                                                    <td className="px-5 py-3 text-gray-600">{item.ruang?.nama_ruang || '-'}</td>
+                                                    <td className="px-5 py-3 text-center font-semibold text-gray-800">{item.jumlah}</td>
+                                                    <td className="px-5 py-3">
+                                                        <span className={`px-2 py-1 rounded text-xs font-medium ${getKondisiBadge(item.kondisi)}`}>
+                                                            {item.kondisi}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
-                                        <div>
-                                            <label className="block text-sm text-gray-500 mb-1">Tanggal Akhir</label>
-                                            <div className="relative">
-                                                <input
-                                                    type="date"
-                                                    value={endDate}
-                                                    onChange={(e) => setEndDate(e.target.value)}
-                                                    className="w-full border rounded-xl px-4 py-3"
-                                                />
-                                            </div>
-                                        </div>
-                                    </>
-                                )}
-
-                                <div className="flex items-end">
+                    {/* ── PEMINJAMAN TAB ── */}
+                    {activeTab === 'peminjaman' && (
+                        <div className="space-y-4">
+                            {/* Date Filter */}
+                            <div className="bg-white rounded-2xl shadow-sm p-5">
+                                <h2 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                    <Filter size={16} /> Filter Tanggal
+                                </h2>
+                                <div className="flex gap-4 items-end flex-wrap">
+                                    <div>
+                                        <label className="block text-sm text-gray-500 mb-1">Tanggal Mulai</label>
+                                        <input
+                                            type="date"
+                                            value={startDate}
+                                            onChange={e => setStartDate(e.target.value)}
+                                            className="border rounded-xl px-4 py-2.5 text-sm"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm text-gray-500 mb-1">Tanggal Akhir</label>
+                                        <input
+                                            type="date"
+                                            value={endDate}
+                                            onChange={e => setEndDate(e.target.value)}
+                                            className="border rounded-xl px-4 py-2.5 text-sm"
+                                        />
+                                    </div>
                                     <button
-                                        onClick={generateReport}
-                                        disabled={loading}
-                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                                        onClick={fetchPeminjaman}
+                                        disabled={loadingPeminjaman || !startDate || !endDate}
+                                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm transition-colors disabled:opacity-50"
                                     >
-                                        {loading ? <LoadingSpinner size="sm" /> : <BarChart3 size={18} />}
-                                        Generate Laporan
+                                        {loadingPeminjaman ? <LoadingSpinner size="sm" /> : <BarChart3 size={16} />}
+                                        Tampilkan
                                     </button>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Report Preview */}
-                        {reportData && (
-                            <div className="bg-white rounded-2xl shadow-sm overflow-hidden print:shadow-none">
-                                {/* Report Header */}
-                                <div className="p-6 border-b flex justify-between items-center print:hidden">
-                                    <div>
-                                        <h2 className="font-semibold text-gray-800">
-                                            {reportType === 'peminjaman' ? 'Laporan Peminjaman' : 'Laporan Inventaris'}
-                                        </h2>
-                                        <p className="text-sm text-gray-500">
-                                            {reportType === 'peminjaman'
-                                                ? `Periode: ${new Date(startDate).toLocaleDateString('id-ID')} - ${new Date(endDate).toLocaleDateString('id-ID')}`
-                                                : `Total: ${reportData.totalBarang} barang`
-                                            }
-                                        </p>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={handlePrint}
-                                            className="border px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-50 transition-colors"
-                                        >
-                                            <Printer size={16} /> Cetak
-                                        </button>
-                                        <button
-                                            onClick={handleExportCSV}
-                                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-                                        >
-                                            <Download size={16} /> Export CSV
-                                        </button>
-                                    </div>
+                            {/* Stats */}
+                            {peminjamanLoaded && (
+                                <div className="grid grid-cols-3 gap-4">
+                                    {[
+                                        { label: 'Total Peminjaman', val: peminjamanStats.total, color: 'blue', Icon: FileText },
+                                        { label: 'Dikembalikan', val: peminjamanStats.dikembalikan, color: 'green', Icon: CheckCircle },
+                                        { label: 'Masih Dipinjam', val: peminjamanStats.aktif, color: 'orange', Icon: Clock },
+                                    ].map(({ label, val, color, Icon }) => (
+                                        <div key={label} className={`bg-${color}-50 rounded-2xl p-5 flex items-center gap-4`}>
+                                            <div className={`w-12 h-12 bg-${color}-100 rounded-xl flex items-center justify-center`}>
+                                                <Icon className={`text-${color}-600`} size={20} />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm text-gray-500">{label}</p>
+                                                <p className="text-2xl font-bold text-gray-800">{val}</p>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
+                            )}
 
-                                {/* Summary Cards (for peminjaman) */}
-                                {reportType === 'peminjaman' && (
-                                    <div className="grid grid-cols-3 gap-4 p-6 border-b">
-                                        <div className="bg-blue-50 rounded-xl p-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                                                    <FileText className="text-blue-600" size={18} />
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm text-gray-500">Total Peminjaman</p>
-                                                    <p className="text-xl font-bold text-gray-800">{reportData.totalPeminjaman}</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="bg-green-50 rounded-xl p-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                                                    <TrendingUp className="text-green-600" size={18} />
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm text-gray-500">Dikembalikan</p>
-                                                    <p className="text-xl font-bold text-gray-800">{reportData.totalDikembalikan}</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="bg-red-50 rounded-xl p-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                                                    <Calendar className="text-red-600" size={18} />
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm text-gray-500">Terlambat</p>
-                                                    <p className="text-xl font-bold text-gray-800">{reportData.totalTerlambat}</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Data Table */}
-                                <div className="overflow-x-auto">
-                                    {reportType === 'peminjaman' ? (
-                                        <table className="w-full">
-                                            <thead className="bg-gray-50 text-gray-500 text-sm">
-                                                <tr>
-                                                    <th className="px-6 py-3 text-left">No</th>
-                                                    <th className="px-6 py-3 text-left">Peminjam</th>
-                                                    <th className="px-6 py-3 text-left">Barang</th>
-                                                    <th className="px-6 py-3 text-left">Tanggal Pinjam</th>
-                                                    <th className="px-6 py-3 text-left">Status</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y">
-                                                {reportData.peminjamanList.map((item, index) => (
-                                                    <tr key={item.id_peminjaman} className="hover:bg-gray-50">
-                                                        <td className="px-6 py-4">{index + 1}</td>
-                                                        <td className="px-6 py-4">{item.pegawai?.nama || '-'}</td>
-                                                        <td className="px-6 py-4">
-                                                            {item.detail_peminjaman?.map((d: any) => d.inventaris?.nama).join(', ') || '-'}
-                                                        </td>
-                                                        <td className="px-6 py-4">
-                                                            {new Date(item.tanggal_pinjam).toLocaleDateString('id-ID')}
-                                                        </td>
-                                                        <td className="px-6 py-4">
-                                                            <span className={`px-2 py-1 rounded text-xs ${item.status === 'dikembalikan'
-                                                                ? 'bg-green-100 text-green-700'
-                                                                : item.status === 'disetujui'
-                                                                    ? 'bg-blue-100 text-blue-700'
-                                                                    : 'bg-yellow-100 text-yellow-700'
-                                                                }`}>
-                                                                {item.status}
-                                                            </span>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    ) : (
-                                        <table className="w-full">
-                                            <thead className="bg-gray-50 text-gray-500 text-sm">
-                                                <tr>
-                                                    <th className="px-6 py-3 text-left">Kode</th>
-                                                    <th className="px-6 py-3 text-left">Nama Barang</th>
-                                                    <th className="px-6 py-3 text-left">Jenis</th>
-                                                    <th className="px-6 py-3 text-left">Ruang</th>
-                                                    <th className="px-6 py-3 text-center">Jumlah</th>
-                                                    <th className="px-6 py-3 text-left">Kondisi</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y">
-                                                {reportData.peminjamanList.map((item) => (
-                                                    <tr key={item.id_inventaris} className="hover:bg-gray-50">
-                                                        <td className="px-6 py-4 font-mono text-sm">
-                                                            INV-{String(item.kode_inventaris).padStart(4, '0')}
-                                                        </td>
-                                                        <td className="px-6 py-4">{item.nama}</td>
-                                                        <td className="px-6 py-4">{item.jenis?.nama_jenis || '-'}</td>
-                                                        <td className="px-6 py-4">{item.ruang?.nama_ruang || '-'}</td>
-                                                        <td className="px-6 py-4 text-center">{item.jumlah}</td>
-                                                        <td className="px-6 py-4">
-                                                            <span className={`px-2 py-1 rounded text-xs ${item.kondisi === 'Baik'
-                                                                ? 'bg-green-100 text-green-700'
-                                                                : item.kondisi === 'Rusak Ringan'
-                                                                    ? 'bg-yellow-100 text-yellow-700'
-                                                                    : 'bg-red-100 text-red-700'
-                                                                }`}>
-                                                                {item.kondisi}
-                                                            </span>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    )}
-                                </div>
-
-                                {reportData.peminjamanList.length === 0 && (
+                            {/* Table */}
+                            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                                {!peminjamanLoaded && !loadingPeminjaman ? (
                                     <div className="p-12 text-center">
-                                        <FileText className="mx-auto text-gray-300 mb-4" size={48} />
-                                        <p className="text-gray-500">Tidak ada data untuk periode ini</p>
+                                        <Calendar className="mx-auto text-gray-300 mb-3" size={48} />
+                                        <p className="text-gray-500">Pilih rentang tanggal lalu klik <strong>Tampilkan</strong></p>
                                     </div>
+                                ) : loadingPeminjaman ? (
+                                    <div className="p-12"><LoadingSpinner /></div>
+                                ) : peminjamanList.length === 0 ? (
+                                    <div className="p-12 text-center">
+                                        <FileText className="mx-auto text-gray-300 mb-3" size={48} />
+                                        <p className="text-gray-500">Tidak ada data peminjaman pada periode ini</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="p-5 border-b">
+                                            <h2 className="font-semibold text-gray-800">Data Peminjaman</h2>
+                                            <p className="text-sm text-gray-500">
+                                                {new Date(startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                                {' — '}
+                                                {new Date(endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                            </p>
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full">
+                                                <thead className="bg-gray-50 text-gray-500 text-sm">
+                                                    <tr>
+                                                        <th className="px-5 py-3 text-left">No</th>
+                                                        <th className="px-5 py-3 text-left">Peminjam</th>
+                                                        <th className="px-5 py-3 text-left">Barang</th>
+                                                        <th className="px-5 py-3 text-left">Tgl Pinjam</th>
+                                                        <th className="px-5 py-3 text-left">Tgl Kembali</th>
+                                                        <th className="px-5 py-3 text-left">Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y">
+                                                    {peminjamanList.map((item, i) => (
+                                                        <tr key={item.id_peminjaman} className="hover:bg-gray-50">
+                                                            <td className="px-5 py-3 text-gray-500 text-sm">{i + 1}</td>
+                                                            <td className="px-5 py-3">
+                                                                <p className="font-medium text-gray-800">{item.pegawai?.nama || '-'}</p>
+                                                                <p className="text-xs text-gray-400">{item.pegawai?.email || ''}</p>
+                                                            </td>
+                                                            <td className="px-5 py-3 text-gray-600 text-sm">
+                                                                {item.detail_peminjaman?.map((d: any) =>
+                                                                    `${d.inventaris?.nama} (x${d.jumlah})`
+                                                                ).join(', ') || '-'}
+                                                            </td>
+                                                            <td className="px-5 py-3 text-gray-600 text-sm">
+                                                                {new Date(item.tanggal_pinjam).toLocaleDateString('id-ID')}
+                                                            </td>
+                                                            <td className="px-5 py-3 text-gray-600 text-sm">
+                                                                {item.tanggal_kembali
+                                                                    ? new Date(item.tanggal_kembali).toLocaleDateString('id-ID')
+                                                                    : <span className="text-gray-400">-</span>}
+                                                            </td>
+                                                            <td className="px-5 py-3">
+                                                                {getStatusBadge(item.status)}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </>
                                 )}
                             </div>
-                        )}
-
-                        {!reportData && !loading && (
-                            <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
-                                <FileText className="mx-auto text-gray-300 mb-4" size={64} />
-                                <h3 className="text-lg font-medium text-gray-700 mb-2">Belum Ada Laporan</h3>
-                                <p className="text-gray-500">Pilih filter dan klik "Generate Laporan" untuk melihat data</p>
-                            </div>
-                        )}
-                    </div>
-                </main>
-            </div>
-        
+                        </div>
+                    )}
+                </div>
+            </main>
+        </div>
     );
 }
