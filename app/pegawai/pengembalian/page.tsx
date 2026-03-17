@@ -53,7 +53,7 @@ export default function PengembalianPage() {
                         inventaris:id_inventaris (nama, kode_inventaris)
                     )
                 `)
-                .in('status', ['disetujui', 'pending'])
+                .in('status', ['disetujui', 'konfirmasi'])
                 .order('tanggal_pinjam', { ascending: false });
 
             // If pegawai, only show their own borrowings
@@ -121,8 +121,24 @@ export default function PengembalianPage() {
     };
 
     const handleRequestReturn = async (id: string) => {
-        // For pegawai - just mark as pending return (could add a status for this)
-        alert('Permintaan pengembalian telah diajukan. Silakan serahkan barang ke operator.');
+        if (!confirm('Konfirmasi pengajuan pengembalian barang ini?')) return;
+
+        setProcessingId(id);
+        try {
+            const { error } = await supabase
+                .from('peminjaman')
+                .update({ status: 'konfirmasi' })
+                .eq('id_peminjaman', id);
+
+            if (error) throw error;
+
+            fetchPeminjaman();
+        } catch (error) {
+            console.error('Error mengajukan pengembalian:', error);
+            alert('Gagal mengajukan pengembalian. Silakan coba lagi.');
+        } finally {
+            setProcessingId(null);
+        }
     };
 
     const filteredPeminjaman = peminjaman.filter(item => {
@@ -138,6 +154,12 @@ export default function PengembalianPage() {
                 return (
                     <span className="flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
                         <CheckCircle size={14} /> Dipinjam
+                    </span>
+                );
+            case 'konfirmasi':
+                return (
+                    <span className="flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+                        <RotateCcw size={14} /> Menunggu Konfirmasi
                     </span>
                 );
             case 'pending':
@@ -308,31 +330,23 @@ export default function PengembalianPage() {
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     {item.status === 'disetujui' && (
-                                                        role === 'pegawai' ? (
-                                                            <button
-                                                                onClick={() => handleRequestReturn(item.id_peminjaman)}
-                                                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-                                                            >
+                                                        <button
+                                                            onClick={() => handleRequestReturn(item.id_peminjaman)}
+                                                            disabled={processingId === item.id_peminjaman}
+                                                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
+                                                        >
+                                                            {processingId === item.id_peminjaman ? (
+                                                                <LoadingSpinner size="sm" />
+                                                            ) : (
                                                                 <RotateCcw size={16} />
-                                                                Ajukan Pengembalian
-                                                            </button>
-                                                        ) : (
-                                                            <button
-                                                                onClick={() => handleReturn(item.id_peminjaman)}
-                                                                disabled={processingId === item.id_peminjaman}
-                                                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
-                                                            >
-                                                                {processingId === item.id_peminjaman ? (
-                                                                    <LoadingSpinner size="sm" />
-                                                                ) : (
-                                                                    <CheckCircle size={16} />
-                                                                )}
-                                                                Konfirmasi Kembali
-                                                            </button>
-                                                        )
+                                                            )}
+                                                            Ajukan Pengembalian
+                                                        </button>
                                                     )}
-                                                    {item.status === 'pending' && role !== 'pegawai' && (
-                                                        <span className="text-gray-400 text-sm">Menunggu persetujuan</span>
+                                                    {item.status === 'konfirmasi' && (
+                                                        <span className="text-blue-500 text-sm flex items-center gap-1">
+                                                            <Clock size={14} /> Menunggu dikonfirmasi operator
+                                                        </span>
                                                     )}
                                                 </td>
                                             </tr>

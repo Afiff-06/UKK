@@ -25,7 +25,7 @@ interface Peminjaman {
     detail_peminjaman: {
         id: string;
         jumlah: number;
-        inventaris: { nama: string; kode_inventaris: number };
+        inventaris: { id_inventaris: string; nama: string; kode_inventaris: number; jumlah: number };
     }[];
 }
 
@@ -50,10 +50,10 @@ export default function PengembalianPage() {
                     detail_peminjaman (
                         id,
                         jumlah,
-                        inventaris:id_inventaris (nama, kode_inventaris)
+                        inventaris:id_inventaris (id_inventaris, nama, kode_inventaris, jumlah)
                     )
                 `)
-                .in('status', ['disetujui', 'pending'])
+                .in('status', ['konfirmasi'])
                 .order('tanggal_pinjam', { ascending: false });
 
             // If pegawai, only show their own borrowings
@@ -83,25 +83,38 @@ export default function PengembalianPage() {
 
         setProcessingId(id);
         try {
-            // Get the peminjaman details to update stock
             const pinjaman = peminjaman.find(p => p.id_peminjaman === id);
 
             if (pinjaman) {
-                // Update stock for each item
+                // Kembalikan jumlah stok untuk setiap barang yang dipinjam
                 for (const detail of pinjaman.detail_peminjaman) {
-                    const { error: stockError } = await supabase.rpc('increment_stock', {
-                        item_id: (detail.inventaris as any).id_inventaris,
-                        amount: detail.jumlah,
-                    });
+                    const inv = detail.inventaris as { id_inventaris: string; jumlah: number; nama: string; kode_inventaris: number };
 
-                    // If RPC doesn't exist, update directly
-                    if (stockError) {
-                        console.log('RPC not available, updating directly');
+                    // Fetch stok terkini terlebih dahulu
+                    const { data: currentItem, error: fetchError } = await supabase
+                        .from('inventaris')
+                        .select('jumlah')
+                        .eq('id_inventaris', inv.id_inventaris)
+                        .single();
+
+                    if (fetchError || !currentItem) {
+                        console.error('Gagal mengambil stok:', inv.nama, fetchError);
+                        continue;
+                    }
+
+                    // Tambahkan kembali jumlah yang dipinjam ke stok
+                    const { error: updateError } = await supabase
+                        .from('inventaris')
+                        .update({ jumlah: currentItem.jumlah + detail.jumlah })
+                        .eq('id_inventaris', inv.id_inventaris);
+
+                    if (updateError) {
+                        console.error('Gagal update stok:', inv.nama, updateError);
                     }
                 }
             }
 
-            // Update peminjaman status
+            // Update status peminjaman menjadi dikembalikan
             const { error } = await supabase
                 .from('peminjaman')
                 .update({
@@ -115,6 +128,7 @@ export default function PengembalianPage() {
             fetchPeminjaman();
         } catch (error) {
             console.error('Error processing return:', error);
+            alert('Gagal memproses pengembalian. Silakan coba lagi.');
         } finally {
             setProcessingId(null);
         }
@@ -134,6 +148,12 @@ export default function PengembalianPage() {
 
     const getStatusBadge = (status: string) => {
         switch (status) {
+            case 'konfirmasi':
+                return (
+                    <span className="flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+                        <RotateCcw size={14} /> Menunggu Konfirmasi
+                    </span>
+                );
             case 'disetujui':
                 return (
                     <span className="flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
@@ -170,12 +190,7 @@ export default function PengembalianPage() {
 
                     <div className="p-8">
                         <h1 className="text-3xl font-bold mb-2 text-gray-800">Pengembalian Barang</h1>
-                        <p className="text-gray-500 mb-6">
-                            {role === 'pegawai'
-                                ? 'Daftar barang yang Anda pinjam'
-                                : 'Kelola pengembalian barang yang dipinjam'
-                            }
-                        </p>
+                    <p className="text-gray-500 mb-6">Konfirmasi pengembalian barang dari pegawai</p>
 
                         {/* Summary Cards */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -307,32 +322,19 @@ export default function PengembalianPage() {
                                                     {getStatusBadge(item.status)}
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    {item.status === 'disetujui' && (
-                                                        role === 'pegawai' ? (
-                                                            <button
-                                                                onClick={() => handleRequestReturn(item.id_peminjaman)}
-                                                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-                                                            >
-                                                                <RotateCcw size={16} />
-                                                                Ajukan Pengembalian
-                                                            </button>
-                                                        ) : (
-                                                            <button
-                                                                onClick={() => handleReturn(item.id_peminjaman)}
-                                                                disabled={processingId === item.id_peminjaman}
-                                                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
-                                                            >
-                                                                {processingId === item.id_peminjaman ? (
-                                                                    <LoadingSpinner size="sm" />
-                                                                ) : (
-                                                                    <CheckCircle size={16} />
-                                                                )}
-                                                                Konfirmasi Kembali
-                                                            </button>
-                                                        )
-                                                    )}
-                                                    {item.status === 'pending' && role !== 'pegawai' && (
-                                                        <span className="text-gray-400 text-sm">Menunggu persetujuan</span>
+                                                    {item.status === 'konfirmasi' && (
+                                                        <button
+                                                            onClick={() => handleReturn(item.id_peminjaman)}
+                                                            disabled={processingId === item.id_peminjaman}
+                                                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
+                                                        >
+                                                            {processingId === item.id_peminjaman ? (
+                                                                <LoadingSpinner size="sm" />
+                                                            ) : (
+                                                                <CheckCircle size={16} />
+                                                            )}
+                                                            Konfirmasi Kembali
+                                                        </button>
                                                     )}
                                                 </td>
                                             </tr>

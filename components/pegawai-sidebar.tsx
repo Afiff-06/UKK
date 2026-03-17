@@ -15,7 +15,7 @@ import { FullPageLoader } from "./loading-spinner";
 
 const pegawaiMenu = [
     { icon: <LayoutDashboard />, label: "Beranda", path: "/pegawai/dashboard" },
-    { icon: <ClipboardList />, label: "Peminjaman", path: "/pegawai/peminjaman" },
+    // { icon: <ClipboardList />, label: "Peminjaman", path: "/pegawai/peminjaman" },
     { icon: <RotateCcw />, label: "Pengembalian", path: "/pegawai/pengembalian" },
 ];
 
