@@ -41,17 +41,17 @@ export function LoginForm({
         .single();
 
       if (userError || !userData) {
-          throw new Error("Gagal memuat profil pengguna");
+        throw new Error("Gagal memuat profil pengguna");
       }
 
       // Redirect berdasarkan role
       const role = userData.role;
       if (role === 'admin') {
-          router.push("/admin/dashboard");
+        router.push("/admin/dashboard");
       } else if (role === 'operator') {
-          router.push("/operator/dashboard");
+        router.push("/operator/dashboard");
       } else {
-          router.push("/pegawai/dashboard");
+        router.push("/pegawai/dashboard");
       }
 
     } catch (error: unknown) {
@@ -88,7 +88,7 @@ export function LoginForm({
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full h-12 bg-gray-50 border border-gray-200 rounded-xl px-4 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full h-12 text-black bg-gray-50 border border-gray-200 rounded-xl px-4 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               />
             </div>
 
@@ -105,7 +105,7 @@ export function LoginForm({
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full h-12 bg-gray-50 border border-gray-200 rounded-xl px-4 pr-12 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full h-12 text-black bg-gray-50 border border-gray-200 rounded-xl px-4 pr-12 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
                 <button
                   type="button"
