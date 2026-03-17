@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useMemo, ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 
@@ -26,11 +26,13 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+    // useMemo prevents a new Supabase instance on every re-render
+    const supabase = useMemo(() => createClient(), []);
+
     const [user, setUser] = useState<UserProfile | null>(null);
     const [role, setRole] = useState<UserRole>(null);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
-    const supabase = createClient();
 
     const fetchUserProfile = async (userId: string) => {
         try {
@@ -69,39 +71,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     useEffect(() => {
-        let timeoutId: NodeJS.Timeout;
-
-        // Check initial session
-        const initAuth = async () => {
-            try {
-                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-                if (sessionError) {
-                    console.error('Session error:', sessionError);
-                    return;
-                }
-                if (session?.user) {
-                    await fetchUserProfile(session.user.id);
-                }
-            } catch (error) {
-                console.error('Error initializing auth:', error);
-            } finally {
-                clearTimeout(timeoutId);
-                setLoading(false);
-            }
-        };
-
-        // Timeout fallback: if auth init takes too long, stop loading
-        timeoutId = setTimeout(() => {
-            console.warn('Auth initialization timed out');
-            setLoading(false);
-        }, 10000);
-
-        initAuth();
-
-        // Listen for auth state changes (login, logout, token refresh)
+        // onAuthStateChange fires immediately with the current session (INITIAL_SESSION),
+        // then again on any login/logout. This is the single source of truth.
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
-                if (event === 'SIGNED_IN' && session?.user) {
+                if (event === 'INITIAL_SESSION') {
+                    if (session?.user) {
+                        await fetchUserProfile(session.user.id);
+                    }
+                    // Always stop loading after initial session check
+                    setLoading(false);
+                } else if (event === 'SIGNED_IN' && session?.user) {
                     await fetchUserProfile(session.user.id);
                 } else if (event === 'SIGNED_OUT') {
                     setUser(null);
@@ -111,16 +91,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
 
         return () => {
-            clearTimeout(timeoutId);
             subscription.unsubscribe();
         };
-    }, []);
+    }, [supabase]);
 
     const logout = async () => {
         await supabase.auth.signOut();
-        // Also clear legacy sessions
-        localStorage.removeItem('user_session');
-        localStorage.removeItem('petugas_session');
         setUser(null);
         setRole(null);
         router.push('/auth/login');
