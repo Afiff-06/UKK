@@ -28,6 +28,7 @@ export default function AdminSidebar({ children }: { children: React.ReactNode }
     const pathname = usePathname();
     const { logout, loading } = useAuth();
 
+    console.log('loading: ', loading)
     if (loading) {
         return <FullPageLoader />;
     }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 import { Package, ShieldCheck, BarChart3, ClipboardList, ArrowRight, Star } from "lucide-react";
 
 const features = [
@@ -79,7 +78,7 @@ export default function Home() {
         </h1>
 
         <p className="text-lg md:text-xl text-slate-300 max-w-2xl mb-10 leading-relaxed">
-          Platform manajemen inventaris modern untuk mengelola aset, peminjaman barang, 
+          Platform manajemen inventaris modern untuk mengelola aset, peminjaman barang,
           dan laporan dengan efisien dalam satu sistem terintegrasi.
         </p>
 
@@ -125,7 +124,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="relative z-10 border-t border-white/10 py-6 text-center text-slate-500 text-sm">
-        © {new Date().getFullYear()} Sistem Manajemen Inventaris. All rights reserved.
+        © 2026 Sistem Manajemen Inventaris. All rights reserved.
       </footer>
     </div>
   );
