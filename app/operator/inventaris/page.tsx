@@ -14,6 +14,7 @@ import {
 import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
 import LoadingSpinner from "@/components/loading-spinner";
+import { useAuth } from "@/lib/auth-context";
 
 interface Inventaris {
     id_inventaris: string;
@@ -27,6 +28,7 @@ interface Inventaris {
     tanggal_register: string;
     jenis?: { nama_jenis: string };
     ruang?: { nama_ruang: string };
+    isDipinjam?: boolean;
 }
 
 interface Jenis {
@@ -48,6 +50,7 @@ export default function InventarisPage() {
     const [editItem, setEditItem] = useState<Inventaris | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [filterKondisi, setFilterKondisi] = useState("");
+    const [filterStatus, setFilterStatus] = useState<'tersedia' | 'dipinjam'>('tersedia');
 
     const [formData, setFormData] = useState({
         nama: "",
@@ -59,24 +62,36 @@ export default function InventarisPage() {
     });
 
     const supabase = createClient();
+    const { user } = useAuth()
 
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [inventarisRes, jenisRes, ruangRes] = await Promise.all([
+            const [inventarisRes, jenisRes, ruangRes, peminjamanActiveRes] = await Promise.all([
                 supabase
                     .from('inventaris')
-                    .select(`
-                        *,
-                        jenis:id_jenis (nama_jenis),
-                        ruang:id_ruang (nama_ruang)
-                    `)
+                    .select(`*, jenis:id_jenis (nama_jenis), ruang:id_ruang (nama_ruang)`)
                     .order('kode_inventaris', { ascending: true }),
                 supabase.from('jenis').select('*'),
                 supabase.from('ruang').select('*'),
+                // Fetch inventaris IDs that are currently being borrowed (status disetujui)
+                supabase
+                    .from('detail_peminjaman')
+                    .select('id_inventaris, peminjaman!inner(status)')
+                    .eq('peminjaman.status', 'disetujui'),
             ]);
 
-            if (inventarisRes.data) setItems(inventarisRes.data);
+            // Build a Set of borrowed inventaris IDs for O(1) lookup
+            const borrowedIds = new Set(
+                (peminjamanActiveRes.data ?? []).map((d: { id_inventaris: string }) => d.id_inventaris)
+            );
+
+            if (inventarisRes.data) {
+                setItems(inventarisRes.data.map(item => ({
+                    ...item,
+                    isDipinjam: borrowedIds.has(item.id_inventaris),
+                })));
+            }
             if (jenisRes.data) setJenisList(jenisRes.data);
             if (ruangRes.data) setRuangList(ruangRes.data);
         } catch (error) {
@@ -128,6 +143,7 @@ export default function InventarisPage() {
                         id_jenis: formData.id_jenis || null,
                         id_ruang: formData.id_ruang || null,
                         kode_inventaris: nextKode,
+                        id_petugas: user?.id
                     });
 
                 if (error) throw error;
@@ -192,8 +208,14 @@ export default function InventarisPage() {
         const matchSearch = item.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
             item.kode_inventaris.toString().includes(searchQuery);
         const matchKondisi = !filterKondisi || item.kondisi === filterKondisi;
-        return matchSearch && matchKondisi;
+        const matchStatus = filterStatus === 'dipinjam' ? item.isDipinjam : !item.isDipinjam;
+        return matchSearch && matchKondisi && matchStatus;
     });
+
+    const counts = {
+        tersedia: items.filter(i => !i.isDipinjam).length,
+        dipinjam: items.filter(i => i.isDipinjam).length,
+    };
 
     const getKondisiBadge = (kondisi: string) => {
         const colors: Record<string, string> = {
@@ -205,260 +227,291 @@ export default function InventarisPage() {
     };
 
     return (
-        
-            <div className="min-h-screen bg-[#f5f7fb] w-full">
-                <main className="flex-1 flex flex-col">
-                    <Header title="Inventaris Barang" />
 
-                    <div className="p-8">
-                        <h1 className="text-3xl font-bold mb-2 text-gray-800">Inventaris Barang</h1>
-                        <p className="text-gray-500 mb-6">Kelola data barang inventaris</p>
+        <div className="min-h-screen bg-[#f5f7fb] w-full">
+            <main className="flex-1 flex flex-col">
+                <Header title="Inventaris Barang" />
 
-                        {/* Filters & Actions */}
-                        <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
-                            <div className="flex gap-3">
-                                <select
-                                    value={filterKondisi}
-                                    onChange={(e) => setFilterKondisi(e.target.value)}
-                                    className="border rounded-xl px-4 py-2 bg-white"
-                                >
-                                    <option value="">Semua Kondisi</option>
-                                    <option value="Baik">Baik</option>
-                                    <option value="Rusak Ringan">Rusak Ringan</option>
-                                    <option value="Rusak Berat">Rusak Berat</option>
-                                </select>
-                            </div>
+                <div className="p-8">
+                    <h1 className="text-3xl font-bold mb-2 text-gray-800">Inventaris Barang</h1>
+                    <p className="text-gray-500 mb-6">Kelola data barang inventaris</p>
 
-                            <div className="flex gap-3 items-center">
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-3 text-gray-400" size={18} />
-                                    <input
-                                        className="border rounded-xl pl-10 pr-4 py-2 w-64 bg-white"
-                                        placeholder="Cari barang..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                    />
-                                </div>
+                    {/* Status Tabs */}
+                    <div className="flex gap-2 mb-4">
+                        {([
+                            { key: 'tersedia', label: 'Tersedia', count: counts.tersedia, color: 'bg-green-500' },
+                            { key: 'dipinjam', label: 'Dipinjam', count: counts.dipinjam, color: 'bg-orange-500' },
+                        ] as const).map(tab => (
+                            <button
+                                key={tab.key}
+                                onClick={() => setFilterStatus(tab.key)}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${filterStatus === tab.key
+                                    ? 'bg-white shadow text-gray-800 border border-gray-200'
+                                    : 'text-gray-500 hover:bg-white/70'
+                                    }`}
+                            >
+                                <span className={`w-2 h-2 rounded-full ${tab.color}`} />
+                                {tab.label}
+                                <span className={`text-xs px-1.5 py-0.5 rounded-full ${filterStatus === tab.key ? 'bg-gray-100 text-gray-600' : 'bg-gray-200 text-gray-500'
+                                    }`}>{tab.count}</span>
+                            </button>
+                        ))}
+                    </div>
 
-                                <button
-                                    onClick={openAddModal}
-                                    className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl flex items-center gap-2 shadow transition-colors"
-                                >
-                                    <Plus size={18} />
-                                    Tambah Barang
-                                </button>
-                            </div>
+                    {/* Filters & Actions */}
+                    <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
+                        <div className="flex gap-3">
+                            <select
+                                value={filterKondisi}
+                                onChange={(e) => setFilterKondisi(e.target.value)}
+                                className="border rounded-xl px-4 py-2 bg-white"
+                            >
+                                <option value="">Semua Kondisi</option>
+                                <option value="Baik">Baik</option>
+                                <option value="Rusak Ringan">Rusak Ringan</option>
+                                <option value="Rusak Berat">Rusak Berat</option>
+                            </select>
                         </div>
 
-                        {/* Table */}
-                        <div className="bg-white rounded-3xl shadow-lg overflow-hidden">
-                            {loading ? (
-                                <div className="p-12">
-                                    <LoadingSpinner />
-                                </div>
-                            ) : filteredItems.length === 0 ? (
-                                <div className="p-12 text-center">
-                                    <Package className="mx-auto text-gray-300 mb-4" size={48} />
-                                    <p className="text-gray-500">Tidak ada data barang</p>
-                                </div>
-                            ) : (
-                                <table className="w-full">
-                                    <thead className="bg-gray-50 text-gray-500 text-sm">
-                                        <tr>
-                                            <th className="px-6 py-4 text-left">Kode</th>
-                                            <th className="px-6 py-4 text-left">Nama Barang</th>
-                                            <th className="px-6 py-4 text-left">Jenis</th>
-                                            <th className="px-6 py-4 text-left">Ruang</th>
-                                            <th className="px-6 py-4 text-center">Stok</th>
-                                            <th className="px-6 py-4 text-left">Kondisi</th>
-                                            <th className="px-6 py-4 text-left">Aksi</th>
-                                        </tr>
-                                    </thead>
+                        <div className="flex gap-3 items-center">
+                            <div className="relative">
+                                <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+                                <input
+                                    className="border rounded-xl pl-10 pr-4 py-2 w-64 bg-white"
+                                    placeholder="Cari barang..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                            </div>
 
-                                    <tbody className="divide-y">
-                                        {filteredItems.map((item) => (
-                                            <tr key={item.id_inventaris} className="hover:bg-gray-50">
-                                                <td className="px-6 py-4 font-mono text-sm">
-                                                    INV-{String(item.kode_inventaris).padStart(4, '0')}
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                                                            <Package className="text-blue-600" size={18} />
-                                                        </div>
-                                                        <div>
-                                                            <p className="font-medium text-gray-800">{item.nama}</p>
-                                                            {item.keterangan && (
-                                                                <p className="text-sm text-gray-400">{item.keterangan}</p>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 text-gray-600">
-                                                    {item.jenis?.nama_jenis || '-'}
-                                                </td>
-                                                <td className="px-6 py-4 text-gray-600">
-                                                    {item.ruang?.nama_ruang || '-'}
-                                                </td>
-                                                <td className="px-6 py-4 text-center">
-                                                    <span className={`font-semibold ${item.jumlah <= 5 ? 'text-red-600' : 'text-gray-800'}`}>
-                                                        {item.jumlah}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span className={`px-3 py-1 rounded-full text-sm ${getKondisiBadge(item.kondisi)}`}>
-                                                        {item.kondisi}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="flex gap-2">
-                                                        <button
-                                                            onClick={() => handleEdit(item)}
-                                                            className="border px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
-                                                        >
-                                                            <Pencil size={14} />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDelete(item.id_inventaris)}
-                                                            className="border px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
-                                                        >
-                                                            <Trash2 size={14} />
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            )}
-
-                            {!loading && filteredItems.length > 0 && (
-                                <div className="flex justify-between items-center p-6 text-sm text-gray-500 border-t">
-                                    <span>Menampilkan {filteredItems.length} dari {items.length} barang</span>
-                                </div>
-                            )}
+                            <button
+                                onClick={openAddModal}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl flex items-center gap-2 shadow transition-colors"
+                            >
+                                <Plus size={18} />
+                                Tambah Barang
+                            </button>
                         </div>
                     </div>
-                </main>
 
-                {/* Modal */}
-                {showModal && (
-                    <div className="fixed inset-0 bg-black/30 flex items-center justify-center p-6 z-50">
-                        <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl p-6 relative">
+                    {/* Table */}
+                    <div className="bg-white rounded-3xl shadow-lg overflow-hidden">
+                        {loading ? (
+                            <div className="p-12">
+                                <LoadingSpinner />
+                            </div>
+                        ) : filteredItems.length === 0 ? (
+                            <div className="p-12 text-center">
+                                <Package className="mx-auto text-gray-300 mb-4" size={48} />
+                                <p className="text-gray-500">Tidak ada data barang</p>
+                            </div>
+                        ) : (
+                            <table className="w-full">
+                                <thead className="bg-gray-50 text-gray-500 text-sm">
+                                    <tr>
+                                        <th className="px-6 py-4 text-left">Kode</th>
+                                        <th className="px-6 py-4 text-left">Nama Barang</th>
+                                        <th className="px-6 py-4 text-left">Jenis</th>
+                                        <th className="px-6 py-4 text-left">Ruang</th>
+                                        <th className="px-6 py-4 text-center">Stok</th>
+                                        <th className="px-6 py-4 text-left">Kondisi</th>
+                                        <th className="px-6 py-4 text-left">Status</th>
+                                        <th className="px-6 py-4 text-left">Aksi</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody className="divide-y">
+                                    {filteredItems.map((item) => (
+                                        <tr key={item.id_inventaris} className="hover:bg-gray-50">
+                                            <td className="px-6 py-4 font-mono text-sm">
+                                                INV-{String(item.kode_inventaris).padStart(4, '0')}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                                        <Package className="text-blue-600" size={18} />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-medium text-gray-800">{item.nama}</p>
+                                                        {item.keterangan && (
+                                                            <p className="text-sm text-gray-400">{item.keterangan}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-600">
+                                                {item.jenis?.nama_jenis || '-'}
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-600">
+                                                {item.ruang?.nama_ruang || '-'}
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className={`font-semibold ${item.jumlah <= 5 ? 'text-red-600' : 'text-gray-800'}`}>
+                                                    {item.jumlah}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`px-3 py-1 rounded-full text-sm font-medium ${item.isDipinjam
+                                                    ? 'bg-orange-100 text-orange-700'
+                                                    : 'bg-green-100 text-green-700'
+                                                    }`}>
+                                                    {item.isDipinjam ? 'Dipinjam' : 'Tersedia'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`px-3 py-1 rounded-full text-sm ${getKondisiBadge(item.kondisi)}`}>
+                                                    {item.kondisi}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => handleEdit(item)}
+                                                        className="border px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+                                                    >
+                                                        <Pencil size={14} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(item.id_inventaris)}
+                                                        className="border px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+
+                        {!loading && filteredItems.length > 0 && (
+                            <div className="flex justify-between items-center p-6 text-sm text-gray-500 border-t">
+                                <span>Menampilkan {filteredItems.length} dari {items.length} barang</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </main>
+
+            {/* Modal */}
+            {showModal && (
+                <div className="fixed inset-0 bg-black/30 flex items-center justify-center p-6 z-50">
+                    <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl p-6 relative">
+                        <button
+                            onClick={() => {
+                                setShowModal(false);
+                                setEditItem(null);
+                                resetForm();
+                            }}
+                            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                        >
+                            <X />
+                        </button>
+
+                        <h2 className="text-2xl font-semibold mb-6">
+                            {editItem ? 'Edit Barang' : 'Tambah Barang'}
+                        </h2>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm text-gray-500 mb-1">Nama Barang</label>
+                                <input
+                                    className="w-full border rounded-xl px-4 py-3"
+                                    placeholder="Masukkan nama barang"
+                                    value={formData.nama}
+                                    onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-gray-500 mb-1">Jumlah</label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        className="w-full border rounded-xl px-4 py-3"
+                                        value={formData.jumlah}
+                                        onChange={(e) => setFormData({ ...formData, jumlah: parseInt(e.target.value) || 1 })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-gray-500 mb-1">Kondisi</label>
+                                    <select
+                                        className="w-full border rounded-xl px-4 py-3"
+                                        value={formData.kondisi}
+                                        onChange={(e) => setFormData({ ...formData, kondisi: e.target.value })}
+                                    >
+                                        <option value="Baik">Baik</option>
+                                        <option value="Rusak Ringan">Rusak Ringan</option>
+                                        <option value="Rusak Berat">Rusak Berat</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-gray-500 mb-1">Jenis</label>
+                                    <select
+                                        className="w-full border rounded-xl px-4 py-3"
+                                        value={formData.id_jenis}
+                                        onChange={(e) => setFormData({ ...formData, id_jenis: e.target.value })}
+                                    >
+                                        <option value="">Pilih Jenis</option>
+                                        {jenisList.map(j => (
+                                            <option key={j.id_jenis} value={j.id_jenis}>{j.nama_jenis}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-gray-500 mb-1">Ruang</label>
+                                    <select
+                                        className="w-full border rounded-xl px-4 py-3"
+                                        value={formData.id_ruang}
+                                        onChange={(e) => setFormData({ ...formData, id_ruang: e.target.value })}
+                                    >
+                                        <option value="">Pilih Ruang</option>
+                                        {ruangList.map(r => (
+                                            <option key={r.id_ruang} value={r.id_ruang}>{r.nama_ruang}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm text-gray-500 mb-1">Keterangan</label>
+                                <textarea
+                                    className="w-full border rounded-xl px-4 py-3 h-20 resize-none"
+                                    placeholder="Keterangan tambahan (opsional)"
+                                    value={formData.keterangan}
+                                    onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-3 mt-6">
                             <button
                                 onClick={() => {
                                     setShowModal(false);
                                     setEditItem(null);
                                     resetForm();
                                 }}
-                                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                                className="px-5 py-2 border rounded-xl hover:bg-gray-50 transition-colors"
                             >
-                                <X />
+                                Batal
                             </button>
-
-                            <h2 className="text-2xl font-semibold mb-6">
-                                {editItem ? 'Edit Barang' : 'Tambah Barang'}
-                            </h2>
-
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm text-gray-500 mb-1">Nama Barang</label>
-                                    <input
-                                        className="w-full border rounded-xl px-4 py-3"
-                                        placeholder="Masukkan nama barang"
-                                        value={formData.nama}
-                                        onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm text-gray-500 mb-1">Jumlah</label>
-                                        <input
-                                            type="number"
-                                            min="1"
-                                            className="w-full border rounded-xl px-4 py-3"
-                                            value={formData.jumlah}
-                                            onChange={(e) => setFormData({ ...formData, jumlah: parseInt(e.target.value) || 1 })}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm text-gray-500 mb-1">Kondisi</label>
-                                        <select
-                                            className="w-full border rounded-xl px-4 py-3"
-                                            value={formData.kondisi}
-                                            onChange={(e) => setFormData({ ...formData, kondisi: e.target.value })}
-                                        >
-                                            <option value="Baik">Baik</option>
-                                            <option value="Rusak Ringan">Rusak Ringan</option>
-                                            <option value="Rusak Berat">Rusak Berat</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm text-gray-500 mb-1">Jenis</label>
-                                        <select
-                                            className="w-full border rounded-xl px-4 py-3"
-                                            value={formData.id_jenis}
-                                            onChange={(e) => setFormData({ ...formData, id_jenis: e.target.value })}
-                                        >
-                                            <option value="">Pilih Jenis</option>
-                                            {jenisList.map(j => (
-                                                <option key={j.id_jenis} value={j.id_jenis}>{j.nama_jenis}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm text-gray-500 mb-1">Ruang</label>
-                                        <select
-                                            className="w-full border rounded-xl px-4 py-3"
-                                            value={formData.id_ruang}
-                                            onChange={(e) => setFormData({ ...formData, id_ruang: e.target.value })}
-                                        >
-                                            <option value="">Pilih Ruang</option>
-                                            {ruangList.map(r => (
-                                                <option key={r.id_ruang} value={r.id_ruang}>{r.nama_ruang}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm text-gray-500 mb-1">Keterangan</label>
-                                    <textarea
-                                        className="w-full border rounded-xl px-4 py-3 h-20 resize-none"
-                                        placeholder="Keterangan tambahan (opsional)"
-                                        value={formData.keterangan}
-                                        onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="flex justify-end gap-3 mt-6">
-                                <button
-                                    onClick={() => {
-                                        setShowModal(false);
-                                        setEditItem(null);
-                                        resetForm();
-                                    }}
-                                    className="px-5 py-2 border rounded-xl hover:bg-gray-50 transition-colors"
-                                >
-                                    Batal
-                                </button>
-                                <button
-                                    onClick={handleSubmit}
-                                    disabled={!formData.nama}
-                                    className="px-5 py-2 bg-blue-600 text-white rounded-xl shadow hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    {editItem ? 'Simpan Perubahan' : 'Tambah Barang'}
-                                </button>
-                            </div>
+                            <button
+                                onClick={handleSubmit}
+                                disabled={!formData.nama}
+                                className="px-5 py-2 bg-blue-600 text-white rounded-xl shadow hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {editItem ? 'Simpan Perubahan' : 'Tambah Barang'}
+                            </button>
                         </div>
                     </div>
-                )}
-            </div>
-        
+                </div>
+            )}
+        </div>
+
     );
 }
