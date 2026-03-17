@@ -55,8 +55,19 @@ export async function updateSession(request: NextRequest) {
 
   // Already logged in + trying to access login/auth pages → redirect to home (which redirects to dashboard)
   if (user && isAuthPage) {
+    const { data: userData } = await supabase
+      .from('tb_user')
+      .select('role')
+      .eq('id', user.id)
+      .single();
     const url = request.nextUrl.clone();
-    url.pathname = "/";
+    if (userData?.role === 'admin') {
+      url.pathname = "/admin/dashboard";
+    } else if (userData?.role === 'operator') {
+      url.pathname = "/operator/dashboard";
+    } else {
+      url.pathname = "/pegawai/dashboard";
+    }
     return NextResponse.redirect(url);
   }
 

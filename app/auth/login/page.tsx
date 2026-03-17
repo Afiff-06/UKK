@@ -7,6 +7,6 @@ export default function Page() {
     //   <div className="w-full max-w-sm">
     //   </div>
     // </div>
-        <LoginForm/>
+    <LoginForm />
   );
 }

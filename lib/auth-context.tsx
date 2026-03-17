@@ -35,37 +35,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         let mounted = true;
 
-        // Step 1: Read initial session from local storage (synchronous-ish)
-        supabase.auth.getSession().then(async ({ data: { session } }) => {
+        const fetchProfile = async (sessionUser: any) => {
             if (!mounted) return;
-            if (session?.user) {
-                try {
-                    const { data } = await supabase
-                        .from('tb_user')
-                        .select('id, nama, username, role, email')
-                        .eq('id', session.user.id)
-                        .single();
+            try {
+                setLoading(true);
+                const { data, error } = await supabase
+                    .from('tb_user')
+                    .select('id, nama, username, role, email')
+                    .eq('id', sessionUser.id)
+                    .single();
 
-                    if (mounted && data) {
+                if (mounted) {
+                    if (data) {
                         setUser({ id: data.id, nama: data.nama, username: data.username, role: data.role, email: data.email });
                         setRole(data.role);
+                    } else {
+                        setUser(null);
+                        setRole(null);
                     }
-                } catch (e) {
-                    console.error('Error fetching profile:', e);
                 }
+            } catch (e) {
+                console.error('Error fetching profile:', e);
+                if (mounted) {
+                    setUser(null);
+                    setRole(null);
+                }
+            } finally {
+                if (mounted) setLoading(false);
             }
-            if (mounted) setLoading(false);
-        }).catch(() => {
-            if (mounted) setLoading(false);
+        };
+
+        // Step 1: Initial check
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (!mounted) return;
+            if (session?.user) {
+                fetchProfile(session.user);
+            } else {
+                setLoading(false);
+            }
         });
 
-        // Step 2: Listen for changes (login/logout from other tabs, token refresh, etc.)
+        // Step 2: Listen for changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             if (!mounted) return;
-            if (event === 'SIGNED_OUT') {
+
+            if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
+                if (session?.user) {
+                    fetchProfile(session.user);
+                }
+            } else if (event === 'SIGNED_OUT') {
                 setUser(null);
                 setRole(null);
                 setLoading(false);
+                router.push('/auth/login');
             }
         });
 
@@ -74,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             subscription.unsubscribe();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [supabase, router]);
 
     const logout = async () => {
         await supabase.auth.signOut();
@@ -82,6 +104,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         setRole(null);
     };
+
+    console.log("user: ", user)
 
     return (
         <AuthContext.Provider value={{ user, profile: user, role, loading, logout }}>

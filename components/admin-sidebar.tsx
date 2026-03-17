@@ -26,10 +26,9 @@ const adminMenu = [
 export default function AdminSidebar({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
-    const { logout, loading } = useAuth();
+    const { user, loading } = useAuth();
 
-    console.log('loading: ', loading)
-    if (loading) {
+    if (loading || !user) {
         return <FullPageLoader />;
     }
 

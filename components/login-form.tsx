@@ -46,13 +46,15 @@ export function LoginForm({
 
       // Redirect berdasarkan role
       const role = userData.role;
-      if (role === 'admin') {
-        router.push("/admin/dashboard");
-      } else if (role === 'operator') {
-        router.push("/operator/dashboard");
-      } else {
-        router.push("/pegawai/dashboard");
-      }
+      // if (role === 'admin') {
+      //   router.push("/admin/dashboard");
+      // } else if (role === 'operator') {
+      //   router.push("/operator/dashboard");
+      // } else {
+      //   router.push("/pegawai/dashboard");
+      // }
+
+      router.refresh()
 
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "Terjadi kesalahan");
