@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useMemo, ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
 
 export type UserRole = 'admin' | 'operator' | 'pegawai' | null;
 
@@ -25,6 +26,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const supabase = useMemo(() => createClient(), []);
+    const router = useRouter();
 
     const [user, setUser] = useState<UserProfile | null>(null);
     const [role, setRole] = useState<UserRole>(null);
@@ -76,6 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const logout = async () => {
         await supabase.auth.signOut();
+        router.push('/auth/login');
         setUser(null);
         setRole(null);
     };
