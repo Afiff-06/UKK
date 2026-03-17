@@ -28,7 +28,6 @@ interface Inventaris {
     tanggal_register: string;
     jenis?: { nama_jenis: string };
     ruang?: { nama_ruang: string };
-    isDipinjam?: boolean;
 }
 
 interface Jenis {
@@ -50,7 +49,6 @@ export default function InventarisPage() {
     const [editItem, setEditItem] = useState<Inventaris | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [filterKondisi, setFilterKondisi] = useState("");
-    const [filterStatus, setFilterStatus] = useState<'tersedia' | 'dipinjam'>('tersedia');
 
     const [formData, setFormData] = useState({
         nama: "",
@@ -67,31 +65,20 @@ export default function InventarisPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [inventarisRes, jenisRes, ruangRes, peminjamanActiveRes] = await Promise.all([
+            const [inventarisRes, jenisRes, ruangRes] = await Promise.all([
                 supabase
                     .from('inventaris')
-                    .select(`*, jenis:id_jenis (nama_jenis), ruang:id_ruang (nama_ruang)`)
+                    .select(`
+                        *,
+                        jenis:id_jenis (nama_jenis),
+                        ruang:id_ruang (nama_ruang)
+                    `)
                     .order('kode_inventaris', { ascending: true }),
                 supabase.from('jenis').select('*'),
                 supabase.from('ruang').select('*'),
-                // Fetch inventaris IDs that are currently being borrowed (status disetujui)
-                supabase
-                    .from('detail_peminjaman')
-                    .select('id_inventaris, peminjaman!inner(status)')
-                    .eq('peminjaman.status', 'disetujui'),
             ]);
 
-            // Build a Set of borrowed inventaris IDs for O(1) lookup
-            const borrowedIds = new Set(
-                (peminjamanActiveRes.data ?? []).map((d: { id_inventaris: string }) => d.id_inventaris)
-            );
-
-            if (inventarisRes.data) {
-                setItems(inventarisRes.data.map(item => ({
-                    ...item,
-                    isDipinjam: borrowedIds.has(item.id_inventaris),
-                })));
-            }
+            if (inventarisRes.data) setItems(inventarisRes.data);
             if (jenisRes.data) setJenisList(jenisRes.data);
             if (ruangRes.data) setRuangList(ruangRes.data);
         } catch (error) {
@@ -208,14 +195,8 @@ export default function InventarisPage() {
         const matchSearch = item.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
             item.kode_inventaris.toString().includes(searchQuery);
         const matchKondisi = !filterKondisi || item.kondisi === filterKondisi;
-        const matchStatus = filterStatus === 'dipinjam' ? item.isDipinjam : !item.isDipinjam;
-        return matchSearch && matchKondisi && matchStatus;
+        return matchSearch && matchKondisi;
     });
-
-    const counts = {
-        tersedia: items.filter(i => !i.isDipinjam).length,
-        dipinjam: items.filter(i => i.isDipinjam).length,
-    };
 
     const getKondisiBadge = (kondisi: string) => {
         const colors: Record<string, string> = {
@@ -235,28 +216,6 @@ export default function InventarisPage() {
                 <div className="p-8">
                     <h1 className="text-3xl font-bold mb-2 text-gray-800">Inventaris Barang</h1>
                     <p className="text-gray-500 mb-6">Kelola data barang inventaris</p>
-
-                    {/* Status Tabs */}
-                    <div className="flex gap-2 mb-4">
-                        {([
-                            { key: 'tersedia', label: 'Tersedia', count: counts.tersedia, color: 'bg-green-500' },
-                            { key: 'dipinjam', label: 'Dipinjam', count: counts.dipinjam, color: 'bg-orange-500' },
-                        ] as const).map(tab => (
-                            <button
-                                key={tab.key}
-                                onClick={() => setFilterStatus(tab.key)}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${filterStatus === tab.key
-                                    ? 'bg-white shadow text-gray-800 border border-gray-200'
-                                    : 'text-gray-500 hover:bg-white/70'
-                                    }`}
-                            >
-                                <span className={`w-2 h-2 rounded-full ${tab.color}`} />
-                                {tab.label}
-                                <span className={`text-xs px-1.5 py-0.5 rounded-full ${filterStatus === tab.key ? 'bg-gray-100 text-gray-600' : 'bg-gray-200 text-gray-500'
-                                    }`}>{tab.count}</span>
-                            </button>
-                        ))}
-                    </div>
 
                     {/* Filters & Actions */}
                     <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
@@ -315,7 +274,6 @@ export default function InventarisPage() {
                                         <th className="px-6 py-4 text-left">Ruang</th>
                                         <th className="px-6 py-4 text-center">Stok</th>
                                         <th className="px-6 py-4 text-left">Kondisi</th>
-                                        <th className="px-6 py-4 text-left">Status</th>
                                         <th className="px-6 py-4 text-left">Aksi</th>
                                     </tr>
                                 </thead>
@@ -348,14 +306,6 @@ export default function InventarisPage() {
                                             <td className="px-6 py-4 text-center">
                                                 <span className={`font-semibold ${item.jumlah <= 5 ? 'text-red-600' : 'text-gray-800'}`}>
                                                     {item.jumlah}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className={`px-3 py-1 rounded-full text-sm font-medium ${item.isDipinjam
-                                                    ? 'bg-orange-100 text-orange-700'
-                                                    : 'bg-green-100 text-green-700'
-                                                    }`}>
-                                                    {item.isDipinjam ? 'Dipinjam' : 'Tersedia'}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4">
