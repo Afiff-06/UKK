@@ -53,6 +53,19 @@ interface RiwayatPeminjaman {
     }[];
 }
 
+interface RiwayatPeminjamanRow {
+    id_peminjaman: string;
+    tanggal_pinjam: string;
+    tanggal_kembali: string | null;
+    status: string;
+    pegawai?: { nama: string; email: string }[] | null;
+    detail_peminjaman?: {
+        id: string;
+        jumlah: number;
+        inventaris?: { nama: string; kode_inventaris: number }[] | null;
+    }[] | null;
+}
+
 export default function Peminjaman() {
     const [items, setItems] = useState<SelectedItem[]>([]);
     const [inventaris, setInventaris] = useState<Inventaris[]>([]);
@@ -141,7 +154,28 @@ export default function Peminjaman() {
             const { data, error } = await query;
             if (error) throw error;
 
-            setRiwayatPeminjaman((data || []) as RiwayatPeminjaman[]);
+            const riwayat = ((data || []) as RiwayatPeminjamanRow[]).map((item) => ({
+                id_peminjaman: item.id_peminjaman,
+                tanggal_pinjam: item.tanggal_pinjam,
+                tanggal_kembali: item.tanggal_kembali,
+                status: item.status,
+                pegawai: item.pegawai?.[0]
+                    ? {
+                        nama: item.pegawai[0].nama,
+                        email: item.pegawai[0].email,
+                    }
+                    : undefined,
+                detail_peminjaman: (item.detail_peminjaman || []).map((detail) => ({
+                    id: detail.id,
+                    jumlah: detail.jumlah,
+                    inventaris: {
+                        nama: detail.inventaris?.[0]?.nama || "",
+                        kode_inventaris: detail.inventaris?.[0]?.kode_inventaris || 0,
+                    },
+                })),
+            }));
+
+            setRiwayatPeminjaman(riwayat);
         } catch (error) {
             console.error("Error fetching riwayat peminjaman:", error);
         }
