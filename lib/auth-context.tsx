@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 if (!user) {
                     setLoading(true);
                 }
-                
+
                 const { data, error } = await supabase
                     .from('tb_user')
                     .select('id, nama, username, role, email')
@@ -109,8 +109,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         setRole(null);
     };
-
-    console.log("user: ", user)
 
     return (
         <AuthContext.Provider value={{ user, profile: user, role, loading, logout }}>
