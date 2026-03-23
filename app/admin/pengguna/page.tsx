@@ -9,6 +9,7 @@ import {
     Trash2,
     Users,
 } from "lucide-react";
+import { manageUserAction } from "./user-actions";
 
 import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
@@ -68,32 +69,11 @@ export default function ManajemenPengguna() {
         fetchUsers();
     }, []);
 
-    const callManageUsers = async (body: object) => {
-        const { data: { session } } = await supabase.auth.getSession();
-        const res = await fetch(
-            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/manage-users`,
-            {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session?.access_token}`,
-                    'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-                },
-                body: JSON.stringify(body),
-            }
-        );
-        const result = await res.json();
-        if (!res.ok || result.error) {
-            throw new Error(result.error || 'Request failed');
-        }
-        return result;
-    };
-
     const handleSubmit = async () => {
         try {
             if (editUser) {
-                // Update existing user via Edge Function
-                await callManageUsers({
+                // Update existing user via Server Action
+                const result = await manageUserAction({
                     action: 'update',
                     userId: editUser.id,
                     userData: {
@@ -105,13 +85,15 @@ export default function ManajemenPengguna() {
                         password: formData.password || undefined,
                     },
                 });
+
+                if (!result.success) throw new Error(result.error);
             } else {
-                // Create new user via Edge Function (creates auth + tb_user)
+                // Create new user via Server Action
                 if (!formData.email) {
                     alert('Email wajib diisi untuk membuat pengguna baru');
                     return;
                 }
-                await callManageUsers({
+                const result = await manageUserAction({
                     action: 'create',
                     userData: {
                         nama: formData.nama,
@@ -122,6 +104,8 @@ export default function ManajemenPengguna() {
                         nip: formData.nip,
                     },
                 });
+
+                if (!result.success) throw new Error(result.error);
             }
 
             setShowModal(false);
@@ -138,10 +122,11 @@ export default function ManajemenPengguna() {
         if (!confirm(`Hapus pengguna "${user.nama}"?`)) return;
 
         try {
-            await callManageUsers({
+            const result = await manageUserAction({
                 action: 'delete',
                 userId: user.id,
             });
+            if (!result.success) throw new Error(result.error);
             fetchUsers();
         } catch (error: any) {
             console.error('Error deleting user:', error);
@@ -413,12 +398,15 @@ export default function ManajemenPengguna() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm text-gray-500 mb-1">Email</label>
+                                    <label className="block text-sm text-gray-500 mb-1">
+                                        Email {editUser && <span className="text-xs text-gray-400 italic">(Tidak dapat diubah)</span>}
+                                    </label>
                                     <input
                                         type="email"
-                                        className="w-full border rounded-xl px-4 py-3"
+                                        className={`w-full border rounded-xl px-4 py-3 transition-colors ${editUser ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-100' : ''}`}
                                         placeholder="email@example.com"
                                         value={formData.email}
+                                        disabled={!!editUser}
                                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                     />
                                 </div>
