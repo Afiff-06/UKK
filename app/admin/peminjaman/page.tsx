@@ -141,7 +141,7 @@ export default function Peminjaman() {
                     id_pegawai: selectedPegawai.id,
                     id_petugas: profile?.id,
                     tanggal_pinjam: tanggalPinjam,
-                    status: role === 'pegawai' ? 'pending' : 'disetujui',
+                    status: role === 'pegawai' ? 'pending' : 'dipinjam',
                 })
                 .select()
                 .single();

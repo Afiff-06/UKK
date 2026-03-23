@@ -160,10 +160,10 @@ export default function LaporanPage() {
     const getStatusBadge = (status: string) => {
         const map: Record<string, { cls: string; label: string }> = {
             'dikembalikan': { cls: 'bg-green-100 text-green-700', label: 'Dikembalikan' },
-            'disetujui':    { cls: 'bg-blue-100 text-blue-700',   label: 'Dipinjam' },
-            'konfirmasi':   { cls: 'bg-indigo-100 text-indigo-700', label: 'Konfirmasi' },
-            'pending':      { cls: 'bg-yellow-100 text-yellow-700', label: 'Pending' },
-            'ditolak':      { cls: 'bg-red-100 text-red-700',    label: 'Ditolak' },
+            'dipinjam': { cls: 'bg-blue-100 text-blue-700', label: 'Dipinjam' },
+            'konfirmasi': { cls: 'bg-indigo-100 text-indigo-700', label: 'Konfirmasi' },
+            'pending': { cls: 'bg-yellow-100 text-yellow-700', label: 'Pending' },
+            'ditolak': { cls: 'bg-red-100 text-red-700', label: 'Ditolak' },
         };
         const s = map[status] || { cls: 'bg-gray-100 text-gray-700', label: status };
         return <span className={`px-2 py-1 rounded text-xs font-medium ${s.cls}`}>{s.label}</span>;
@@ -172,7 +172,7 @@ export default function LaporanPage() {
     const peminjamanStats = {
         total: peminjamanList.length,
         dikembalikan: peminjamanList.filter(p => p.status === 'dikembalikan').length,
-        aktif: peminjamanList.filter(p => p.status === 'disetujui').length,
+        aktif: peminjamanList.filter(p => p.status === 'dipinjam').length,
     };
 
     const canExport = activeTab === 'inventaris'
@@ -206,16 +206,15 @@ export default function LaporanPage() {
                     <div className="flex gap-2 mb-6">
                         {([
                             { key: 'inventaris', label: 'Inventaris', icon: <Package size={16} /> },
-                            { key: 'peminjaman',  label: 'Peminjaman', icon: <FileText size={16} /> },
+                            { key: 'peminjaman', label: 'Peminjaman', icon: <FileText size={16} /> },
                         ] as const).map(tab => (
                             <button
                                 key={tab.key}
                                 onClick={() => setActiveTab(tab.key)}
-                                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                                    activeTab === tab.key
+                                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === tab.key
                                         ? 'bg-white shadow-md text-blue-600 border border-blue-100'
                                         : 'text-gray-500 hover:bg-white/60'
-                                }`}
+                                    }`}
                             >
                                 {tab.icon} {tab.label}
                             </button>

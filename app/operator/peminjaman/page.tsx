@@ -54,7 +54,7 @@ export default function Peminjaman() {
     const supabase = createClient();
 
     const isOverdue = (tanggalPinjam: string, status: string) => {
-        if (status !== "disetujui") return false;
+        if (status !== "dipinjam") return false;
 
         const borrowed = new Date(tanggalPinjam);
         const today = new Date();
@@ -78,7 +78,7 @@ export default function Peminjaman() {
                         <Clock size={14} /> Menunggu
                     </span>
                 );
-            case "disetujui":
+            case "dipinjam":
                 return (
                     <span className="flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
                         <CheckCircle2 size={14} /> Dipinjam
@@ -160,7 +160,7 @@ export default function Peminjaman() {
 
     const jumlahMenunggu = riwayatPeminjaman.filter((item) => item.status === "pending").length;
     const jumlahTerlambat = riwayatPeminjaman.filter((item) => isOverdue(item.tanggal_pinjam, item.status)).length;
-    const jumlahAktif = riwayatPeminjaman.filter((item) => ["pending", "disetujui"].includes(item.status)).length;
+    const jumlahAktif = riwayatPeminjaman.filter((item) => ["pending", "dipinjam"].includes(item.status)).length;
 
     if (loading) {
         return (

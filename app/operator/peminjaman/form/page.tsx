@@ -85,15 +85,6 @@ export default function Peminjaman() {
     const supabase = createClient();
     const router = useRouter()
 
-    const isOverdue = (tanggalPinjam: string, status: string) => {
-        if (status !== "disetujui") return false;
-
-        const borrowed = new Date(tanggalPinjam);
-        const today = new Date();
-        const diffDays = Math.floor((today.getTime() - borrowed.getTime()) / (1000 * 60 * 60 * 24));
-        return diffDays > 7;
-    };
-
     // Initialize date on client side to avoid Next.js 16 prerender issues
     useEffect(() => {
         if (!tanggalPinjam) {
@@ -181,7 +172,7 @@ export default function Peminjaman() {
                     id_pegawai: selectedPegawai.id,
                     id_petugas: profile?.id,
                     tanggal_pinjam: tanggalPinjam,
-                    status: role === 'pegawai' ? 'pending' : 'disetujui',
+                    status: role === 'pegawai' ? 'pending' : 'dipinjam',
                 })
                 .select()
                 .single();
