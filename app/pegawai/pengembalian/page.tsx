@@ -53,7 +53,7 @@ export default function PengembalianPage() {
                         inventaris:id_inventaris (nama, kode_inventaris)
                     )
                 `)
-                .in('status', ['dipinjam', 'konfirmasi'])
+                .in('status', ['dipinjam', 'konfirmasi_pengembalian'])
                 .order('tanggal_pinjam', { ascending: false });
 
             // If pegawai, only show their own borrowings
@@ -127,7 +127,7 @@ export default function PengembalianPage() {
         try {
             const { error } = await supabase
                 .from('peminjaman')
-                .update({ status: 'konfirmasi' })
+                .update({ status: 'konfirmasi_pengembalian' })
                 .eq('id_peminjaman', id);
 
             if (error) throw error;
@@ -156,10 +156,10 @@ export default function PengembalianPage() {
                         <CheckCircle size={14} /> Dipinjam
                     </span>
                 );
-            case 'konfirmasi':
+            case 'konfirmasi_pengembalian':
                 return (
                     <span className="flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
-                        <RotateCcw size={14} /> Menunggu Konfirmasi
+                        <RotateCcw size={14} /> Menunggu Konfirmasi Pengembalian
                     </span>
                 );
             case 'pending':
@@ -343,7 +343,7 @@ export default function PengembalianPage() {
                                                         Ajukan Pengembalian
                                                     </button>
                                                 )}
-                                                {item.status === 'konfirmasi' && (
+                                                {item.status === 'konfirmasi_pengembalian' && (
                                                     <span className="text-blue-500 text-sm flex items-center gap-1">
                                                         <Clock size={14} /> Menunggu dikonfirmasi operator
                                                     </span>

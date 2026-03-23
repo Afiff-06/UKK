@@ -53,7 +53,7 @@ export default function PengembalianPage() {
                         inventaris:id_inventaris (id_inventaris, nama, kode_inventaris, jumlah)
                     )
                 `)
-                .in('status', ['konfirmasi'])
+                .in('status', ['konfirmasi_pengembalian'])
                 .order('tanggal_pinjam', { ascending: false });
 
             // If pegawai, only show their own borrowings
@@ -148,10 +148,10 @@ export default function PengembalianPage() {
 
     const getStatusBadge = (status: string) => {
         switch (status) {
-            case 'konfirmasi':
+            case 'konfirmasi_pengembalian':
                 return (
                     <span className="flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
-                        <RotateCcw size={14} /> Menunggu Konfirmasi
+                        <RotateCcw size={14} /> Menunggu Konfirmasi Pengembalian
                     </span>
                 );
             case 'dipinjam':
@@ -322,7 +322,7 @@ export default function PengembalianPage() {
                                                 {getStatusBadge(item.status)}
                                             </td>
                                             <td className="px-6 py-4">
-                                                {item.status === 'konfirmasi' && (
+                                                {item.status === 'konfirmasi_pengembalian' && (
                                                     <button
                                                         onClick={() => handleReturn(item.id_peminjaman)}
                                                         disabled={processingId === item.id_peminjaman}

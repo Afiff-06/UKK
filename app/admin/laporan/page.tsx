@@ -161,7 +161,7 @@ export default function LaporanPage() {
         const map: Record<string, { cls: string; label: string }> = {
             'dikembalikan': { cls: 'bg-green-100 text-green-700', label: 'Dikembalikan' },
             'dipinjam': { cls: 'bg-blue-100 text-blue-700', label: 'Dipinjam' },
-            'konfirmasi': { cls: 'bg-indigo-100 text-indigo-700', label: 'Konfirmasi' },
+            'konfirmasi_pengembalian': { cls: 'bg-indigo-100 text-indigo-700', label: 'Konfirmasi Pengembalian' },
             'pending': { cls: 'bg-yellow-100 text-yellow-700', label: 'Pending' },
             'ditolak': { cls: 'bg-red-100 text-red-700', label: 'Ditolak' },
         };
@@ -212,8 +212,8 @@ export default function LaporanPage() {
                                 key={tab.key}
                                 onClick={() => setActiveTab(tab.key)}
                                 className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === tab.key
-                                        ? 'bg-white shadow-md text-blue-600 border border-blue-100'
-                                        : 'text-gray-500 hover:bg-white/60'
+                                    ? 'bg-white shadow-md text-blue-600 border border-blue-100'
+                                    : 'text-gray-500 hover:bg-white/60'
                                     }`}
                             >
                                 {tab.icon} {tab.label}
