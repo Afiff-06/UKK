@@ -12,6 +12,7 @@ interface UserProfile {
     username: string;
     role: UserRole;
     email?: string;
+    blocked_until: string | null;
 }
 
 interface AuthContextType {
@@ -45,13 +46,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                 const { data, error } = await supabase
                     .from('tb_user')
-                    .select('id, nama, username, role, email')
+                    .select('id, nama, username, role, email, blocked_until')
                     .eq('id', sessionUser.id)
                     .single();
 
                 if (mounted) {
                     if (data) {
-                        const newUser = { id: data.id, nama: data.nama, username: data.username, role: data.role, email: data.email };
+                        // Check if account is blocked
+                        if (data.blocked_until && new Date(data.blocked_until) > new Date()) {
+                            await supabase.auth.signOut();
+                            setUser(null);
+                            setRole(null);
+                            router.push('/auth/login?error=blocked');
+                            return;
+                        }
+
+                        const newUser = { 
+                            id: data.id, 
+                            nama: data.nama, 
+                            username: data.username, 
+                            role: data.role, 
+                            email: data.email,
+                            blocked_until: data.blocked_until
+                        };
                         setUser(newUser);
                         setRole(data.role);
                     } else {

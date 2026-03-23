@@ -21,6 +21,7 @@ interface UserData {
     email: string;
     role: string;
     nip?: string;
+    blocked_until: string | null;
 }
 
 export default function ManajemenPengguna() {
@@ -30,6 +31,9 @@ export default function ManajemenPengguna() {
     const [editUser, setEditUser] = useState<UserData | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [filterRole, setFilterRole] = useState("");
+    const [showBanModal, setShowBanModal] = useState(false);
+    const [userToBan, setUserToBan] = useState<UserData | null>(null);
+    const [banUntil, setBanUntil] = useState("");
 
     const [formData, setFormData] = useState({
         nama: "",
@@ -47,7 +51,7 @@ export default function ManajemenPengguna() {
         try {
             const { data, error } = await supabase
                 .from('tb_user')
-                .select('id, nama, username, email, role, nip')
+                .select('id, nama, username, email, role, nip, blocked_until')
                 .order('role')
                 .order('nama');
 
@@ -145,6 +149,50 @@ export default function ManajemenPengguna() {
         }
     };
 
+    const handleToggleBlock = async (user: UserData) => {
+        const isCurrentlyBlocked = user.blocked_until && new Date(user.blocked_until) > new Date();
+        
+        if (isCurrentlyBlocked) {
+            if (!confirm(`Buka blokir pengguna "${user.nama}"?`)) return;
+            try {
+                const { error } = await supabase
+                    .from('tb_user')
+                    .update({ blocked_until: null })
+                    .eq('id', user.id);
+                if (error) throw error;
+                fetchUsers();
+            } catch (error: any) {
+                console.error('Error unblocking user:', error);
+                alert(error.message || 'Gagal membuka blokir.');
+            }
+        } else {
+            setUserToBan(user);
+            setBanUntil(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]); // Default 7 days
+            setShowBanModal(true);
+        }
+    };
+
+    const confirmBan = async () => {
+        if (!userToBan || !banUntil) return;
+
+        try {
+            const { error } = await supabase
+                .from('tb_user')
+                .update({ 
+                    blocked_until: new Date(banUntil).toISOString() 
+                })
+                .eq('id', userToBan.id);
+
+            if (error) throw error;
+            setShowBanModal(false);
+            setUserToBan(null);
+            fetchUsers();
+        } catch (error: any) {
+            console.error('Error banning user:', error);
+            alert(error.message || 'Gagal memblokir pengguna.');
+        }
+    };
+
     const handleEdit = (user: UserData) => {
         setEditUser(user);
         setFormData({
@@ -183,7 +231,12 @@ export default function ManajemenPengguna() {
         return matchSearch && matchRole;
     });
 
-    const getRoleBadge = (role: string) => {
+    const getRoleBadge = (role: string, blockedUntil: string | null) => {
+        const isBlocked = blockedUntil && new Date(blockedUntil) > new Date();
+        if (isBlocked) {
+            return <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-medium">Terblokir</span>;
+        }
+
         switch (role) {
             case 'admin':
                 return <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">Admin</span>;
@@ -276,9 +329,20 @@ export default function ManajemenPengguna() {
                                                 </td>
                                                 <td className="px-6 py-4 text-gray-600">{user.username}</td>
                                                 <td className="px-6 py-4 text-gray-600">{user.email || '-'}</td>
-                                                <td className="px-6 py-4">{getRoleBadge(user.role)}</td>
+                                                <td className="px-6 py-4">{getRoleBadge(user.role, user.blocked_until)}</td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => handleToggleBlock(user)}
+                                                            className={`border px-3 py-2 rounded-lg flex items-center gap-1 transition-colors ${
+                                                                user.blocked_until && new Date(user.blocked_until) > new Date()
+                                                                    ? 'text-green-600 hover:bg-green-50 border-green-200'
+                                                                    : 'text-red-500 hover:bg-red-50 border-red-200'
+                                                            }`}
+                                                            title={user.blocked_until && new Date(user.blocked_until) > new Date() ? "Buka Blokir" : "Blokir Akun"}
+                                                        >
+                                                            {user.blocked_until && new Date(user.blocked_until) > new Date() ? "Unban" : "Ban"}
+                                                        </button>
                                                         <button
                                                             onClick={() => handleEdit(user)}
                                                             className="border px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50 flex items-center gap-1 transition-colors"
@@ -413,6 +477,80 @@ export default function ManajemenPengguna() {
                                     className="px-5 py-2 bg-blue-600 text-white rounded-xl shadow hover:bg-blue-700 transition-colors disabled:opacity-50"
                                 >
                                     {editUser ? 'Simpan Perubahan' : 'Tambah Pengguna'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Ban Modal */}
+                {showBanModal && userToBan && (
+                    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-[60] backdrop-blur-sm">
+                        <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl p-8 relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-2 bg-red-500"></div>
+                            
+                            <h2 className="text-2xl font-bold mb-2 text-gray-800 flex items-center gap-2">
+                                <span className="text-red-500">🚫</span> Blokir Akun
+                            </h2>
+                            <p className="text-gray-500 mb-6 text-sm">
+                                Tentukan sampai kapan akun <strong>{userToBan.nama}</strong> akan ditangguhkan.
+                            </p>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Blokir Sampai Tanggal</label>
+                                    <input
+                                        type="date"
+                                        className="w-full border-2 border-gray-100 rounded-2xl px-4 py-3 focus:border-red-500 outline-none transition-all"
+                                        min={new Date().toISOString().split('T')[0]}
+                                        value={banUntil}
+                                        onChange={(e) => setBanUntil(e.target.value)}
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button 
+                                        onClick={() => setBanUntil(new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])}
+                                        className="text-xs bg-gray-50 hover:bg-gray-100 py-2 rounded-xl text-gray-600 transition-colors"
+                                    >
+                                        1 Hari
+                                    </button>
+                                    <button 
+                                        onClick={() => setBanUntil(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])}
+                                        className="text-xs bg-gray-50 hover:bg-gray-100 py-2 rounded-xl text-gray-600 transition-colors"
+                                    >
+                                        1 Minggu
+                                    </button>
+                                    <button 
+                                        onClick={() => setBanUntil(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])}
+                                        className="text-xs bg-gray-50 hover:bg-gray-100 py-2 rounded-xl text-gray-600 transition-colors"
+                                    >
+                                        1 Bulan
+                                    </button>
+                                    <button 
+                                        onClick={() => setBanUntil('2099-12-31')}
+                                        className="text-xs bg-red-50 hover:bg-red-100 py-2 rounded-xl text-red-600 font-medium transition-colors"
+                                    >
+                                        Permanen
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 mt-8">
+                                <button
+                                    onClick={() => {
+                                        setShowBanModal(false);
+                                        setUserToBan(null);
+                                    }}
+                                    className="flex-1 py-3 border-2 border-gray-100 rounded-2xl font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    onClick={confirmBan}
+                                    className="flex-1 py-3 bg-red-600 text-white rounded-2xl font-bold shadow-lg shadow-red-200 hover:bg-red-700 active:scale-95 transition-all"
+                                >
+                                    Konfirmasi
                                 </button>
                             </div>
                         </div>
