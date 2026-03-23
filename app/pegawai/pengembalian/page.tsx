@@ -34,6 +34,7 @@ export default function PengembalianPage() {
     const [peminjaman, setPeminjaman] = useState<Peminjaman[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
+    const [statusFilter, setStatusFilter] = useState("all");
 
     const router = useRouter();
     const { role, profile } = useAuth();
@@ -54,7 +55,7 @@ export default function PengembalianPage() {
                         inventaris:id_inventaris (nama, kode_inventaris)
                     )
                 `)
-                .in('status', ['dipinjam', 'konfirmasi_pengembalian'])
+                .in('status', ['dipinjam', 'konfirmasi_pengembalian', 'dikembalikan'])
                 .order('tanggal_pinjam', { ascending: false });
 
             // If pegawai, only show their own borrowings
@@ -86,8 +87,13 @@ export default function PengembalianPage() {
             const inv = Array.isArray(d.inventaris) ? d.inventaris[0] : d.inventaris;
             return inv?.nama?.toLowerCase() || '';
         }).join(' ');
-        return pegawaiName.includes(searchQuery.toLowerCase()) ||
+
+        const matchesSearch = pegawaiName.includes(searchQuery.toLowerCase()) ||
             items.includes(searchQuery.toLowerCase());
+
+        const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
+
+        return matchesSearch && matchesStatus;
     });
 
     const getStatusBadge = (status: string) => {
@@ -108,6 +114,12 @@ export default function PengembalianPage() {
                 return (
                     <span className="flex items-center gap-1 px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-sm">
                         <Clock size={14} /> Pending
+                    </span>
+                );
+            case 'dikembalikan':
+                return (
+                    <span className="flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
+                        <CheckCircle size={14} /> Dikembalikan
                     </span>
                 );
             default:
@@ -195,14 +207,37 @@ export default function PengembalianPage() {
                                 </div>
                             </div>
                         </div>
+                        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                                    <CheckCircle className="text-green-600" />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-500">Selesai</p>
+                                    <p className="text-2xl font-bold text-gray-800">
+                                        {peminjaman.filter(p => p.status === 'dikembalikan').length}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    {/* Search */}
-                    <div className="flex justify-end mb-6">
+                    {/* Search & Filter */}
+                    <div className="flex flex-col md:flex-row justify-end gap-4 mb-6">
+                        <select
+                            className="border rounded-xl px-4 py-2 bg-white text-gray-600 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm"
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                        >
+                            <option value="all">Semua Status</option>
+                            <option value="dipinjam">Dipinjam</option>
+                            <option value="konfirmasi_pengembalian">Menunggu Konfirmasi</option>
+                            <option value="dikembalikan">Selesai</option>
+                        </select>
                         <div className="relative">
                             <Search className="absolute left-3 top-3 text-gray-400" size={18} />
                             <input
-                                className="border rounded-xl pl-10 pr-4 py-2 w-64 bg-white"
+                                className="border rounded-xl pl-10 pr-4 py-2 w-full md:w-64 bg-white outline-none focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm"
                                 placeholder="Cari peminjam atau barang..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
