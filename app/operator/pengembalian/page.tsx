@@ -53,7 +53,7 @@ export default function PengembalianPage() {
                         inventaris:id_inventaris (id_inventaris, nama, kode_inventaris, jumlah)
                     )
                 `)
-                .in('status', ['konfirmasi_pengembalian'])
+                .in('status', ['dipinjam', 'pending', 'konfirmasi_pengembalian'])
                 .order('tanggal_pinjam', { ascending: false });
 
             // If pegawai, only show their own borrowings
@@ -273,71 +273,71 @@ export default function PengembalianPage() {
                                 </thead>
 
                                 <tbody className="divide-y">
-                                    {filteredPeminjaman.map((item) => (
-                                        <tr key={item.id_peminjaman} className="hover:bg-gray-50">
-                                            {role !== 'pegawai' && (
-                                                <td className="px-6 py-4">
-                                                    <div>
-                                                        <p className="font-medium text-gray-800">
-                                                            {item.pegawai?.nama || 'Unknown'}
-                                                        </p>
-                                                        <p className="text-sm text-gray-400">
-                                                            {item.pegawai?.email}
-                                                        </p>
-                                                    </div>
-                                                </td>
-                                            )}
-                                            <td className="px-6 py-4">
-                                                <div className="space-y-1">
-                                                    {item.detail_peminjaman.map((detail) => (
-                                                        <div key={detail.id} className="flex items-center gap-2">
-                                                            <span className="text-gray-800">
-                                                                {detail.inventaris?.nama}
-                                                            </span>
-                                                            <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">
-                                                                x{detail.jumlah}
-                                                            </span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div>
-                                                    <p className="text-gray-800">
-                                                        {new Date(item.tanggal_pinjam).toLocaleDateString('id-ID', {
-                                                            day: 'numeric',
-                                                            month: 'long',
-                                                            year: 'numeric'
-                                                        })}
-                                                    </p>
-                                                    {isOverdue(item.tanggal_pinjam) && item.status === 'dipinjam' && (
-                                                        <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
-                                                            <AlertTriangle size={12} /> Terlambat
-                                                        </p>
+                                        {filteredPeminjaman
+                                            .filter(item => item.status === 'konfirmasi_pengembalian')
+                                            .map((item) => (
+                                                <tr key={item.id_peminjaman} className="hover:bg-gray-50">
+                                                    {role !== 'pegawai' && (
+                                                        <td className="px-6 py-4">
+                                                            <div>
+                                                                <p className="font-medium text-gray-800">
+                                                                    {item.pegawai?.nama || 'Unknown'}
+                                                                </p>
+                                                                <p className="text-sm text-gray-400">
+                                                                    {item.pegawai?.email}
+                                                                </p>
+                                                            </div>
+                                                        </td>
                                                     )}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                {getStatusBadge(item.status)}
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                {item.status === 'konfirmasi_pengembalian' && (
-                                                    <button
-                                                        onClick={() => handleReturn(item.id_peminjaman)}
-                                                        disabled={processingId === item.id_peminjaman}
-                                                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
-                                                    >
-                                                        {processingId === item.id_peminjaman ? (
-                                                            <LoadingSpinner size="sm" />
-                                                        ) : (
-                                                            <CheckCircle size={16} />
-                                                        )}
-                                                        Konfirmasi Kembali
-                                                    </button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                    <td className="px-6 py-4">
+                                                        <div className="space-y-1">
+                                                            {item.detail_peminjaman.map((detail) => (
+                                                                <div key={detail.id} className="flex items-center gap-2">
+                                                                    <span className="text-gray-800">
+                                                                        {detail.inventaris?.nama}
+                                                                    </span>
+                                                                    <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">
+                                                                        x{detail.jumlah}
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div>
+                                                            <p className="text-gray-800">
+                                                                {new Date(item.tanggal_pinjam).toLocaleDateString('id-ID', {
+                                                                    day: 'numeric',
+                                                                    month: 'long',
+                                                                    year: 'numeric'
+                                                                })}
+                                                            </p>
+                                                            {isOverdue(item.tanggal_pinjam) && (
+                                                                <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                                                                    <AlertTriangle size={12} /> Terlambat
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        {getStatusBadge(item.status)}
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <button
+                                                            onClick={() => handleReturn(item.id_peminjaman)}
+                                                            disabled={processingId === item.id_peminjaman}
+                                                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
+                                                        >
+                                                            {processingId === item.id_peminjaman ? (
+                                                                <LoadingSpinner size="sm" />
+                                                            ) : (
+                                                                <CheckCircle size={16} />
+                                                            )}
+                                                            Konfirmasi Kembali
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
                                 </tbody>
                             </table>
                         )}

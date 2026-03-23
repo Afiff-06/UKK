@@ -25,7 +25,7 @@ interface Peminjaman {
     detail_peminjaman: {
         id: string;
         jumlah: number;
-        inventaris: { nama: string; kode_inventaris: number };
+        inventaris: { id_inventaris: string; nama: string; kode_inventaris: number; jumlah: number };
     }[];
 }
 
@@ -50,16 +50,11 @@ export default function PengembalianPage() {
                     detail_peminjaman (
                         id,
                         jumlah,
-                        inventaris:id_inventaris (nama, kode_inventaris)
+                        inventaris:id_inventaris (id_inventaris, nama, kode_inventaris, jumlah)
                     )
                 `)
-                .in('status', ['dipinjam', 'pending'])
+                .in('status', ['dipinjam', 'pending', 'konfirmasi_pengembalian'])
                 .order('tanggal_pinjam', { ascending: false });
-
-            // If pegawai, only show their own borrowings
-            if (role === 'pegawai' && profile?.id) {
-                query = query.eq('id_pegawai', profile.id);
-            }
 
             const { data, error } = await query;
 
@@ -83,25 +78,38 @@ export default function PengembalianPage() {
 
         setProcessingId(id);
         try {
-            // Get the peminjaman details to update stock
             const pinjaman = peminjaman.find(p => p.id_peminjaman === id);
 
             if (pinjaman) {
-                // Update stock for each item
+                // Kembalikan jumlah stok untuk setiap barang yang dipinjam
                 for (const detail of pinjaman.detail_peminjaman) {
-                    const { error: stockError } = await supabase.rpc('increment_stock', {
-                        item_id: (detail.inventaris as any).id_inventaris,
-                        amount: detail.jumlah,
-                    });
+                    const inv = detail.inventaris;
 
-                    // If RPC doesn't exist, update directly
-                    if (stockError) {
-                        console.log('RPC not available, updating directly');
+                    // Fetch stok terkini
+                    const { data: currentItem, error: fetchError } = await supabase
+                        .from('inventaris')
+                        .select('jumlah')
+                        .eq('id_inventaris', inv.id_inventaris)
+                        .single();
+
+                    if (fetchError || !currentItem) {
+                        console.error('Gagal mengambil stok:', inv.nama, fetchError);
+                        continue;
+                    }
+
+                    // Tambahkan kembali jumlah yang dipinjam ke stok
+                    const { error: updateError } = await supabase
+                        .from('inventaris')
+                        .update({ jumlah: currentItem.jumlah + detail.jumlah })
+                        .eq('id_inventaris', inv.id_inventaris);
+
+                    if (updateError) {
+                        console.error('Gagal update stok:', inv.nama, updateError);
                     }
                 }
             }
 
-            // Update peminjaman status
+            // Update status peminjaman menjadi dikembalikan
             const { error } = await supabase
                 .from('peminjaman')
                 .update({
@@ -114,25 +122,27 @@ export default function PengembalianPage() {
             fetchPeminjaman();
         } catch (error) {
             console.error('Error processing return:', error);
+            alert('Gagal memproses pengembalian. Silakan coba lagi.');
         } finally {
             setProcessingId(null);
         }
     };
 
-    const handleRequestReturn = async (id: string) => {
-        // For pegawai - just mark as pending return (could add a status for this)
-        alert('Permintaan pengembalian telah diajukan. Silakan serahkan barang ke operator.');
-    };
-
     const filteredPeminjaman = peminjaman.filter(item => {
         const pegawaiName = item.pegawai?.nama?.toLowerCase() || '';
-        const items = item.detail_peminjaman.map(d => d.inventaris?.nama?.toLowerCase()).join(' ');
+        const itemsList = item.detail_peminjaman.map(d => d.inventaris?.nama?.toLowerCase()).join(' ');
         return pegawaiName.includes(searchQuery.toLowerCase()) ||
-            items.includes(searchQuery.toLowerCase());
+            itemsList.includes(searchQuery.toLowerCase());
     });
 
     const getStatusBadge = (status: string) => {
         switch (status) {
+            case 'konfirmasi_pengembalian':
+                return (
+                    <span className="flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+                        <RotateCcw size={14} /> Menunggu Konfirmasi Pengembalian
+                    </span>
+                );
             case 'dipinjam':
                 return (
                     <span className="flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
@@ -169,48 +179,43 @@ export default function PengembalianPage() {
 
                 <div className="p-8">
                     <h1 className="text-3xl font-bold mb-2 text-gray-800">Pengembalian Barang</h1>
-                    <p className="text-gray-500 mb-6">
-                        {role === 'pegawai'
-                            ? 'Daftar barang yang Anda pinjam'
-                            : 'Kelola pengembalian barang yang dipinjam'
-                        }
-                    </p>
+                    <p className="text-gray-500 mb-6 font-medium">Kelola pengembalian barang yang dipinjam oleh pegawai</p>
 
                     {/* Summary Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                        <div className="bg-white rounded-2xl p-6 shadow-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
                             <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                                    <Package className="text-blue-600" />
+                                <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center">
+                                    <Package className="text-blue-600" size={24} />
                                 </div>
                                 <div>
-                                    <p className="text-sm text-gray-500">Total Dipinjam</p>
+                                    <p className="text-sm font-semibold text-gray-400">Total Dipinjam</p>
                                     <p className="text-2xl font-bold text-gray-800">
                                         {peminjaman.filter(p => p.status === 'dipinjam').length}
                                     </p>
                                 </div>
                             </div>
                         </div>
-                        <div className="bg-white rounded-2xl p-6 shadow-sm">
+                        <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
                             <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
-                                    <Clock className="text-yellow-600" />
+                                <div className="w-12 h-12 bg-yellow-50 rounded-2xl flex items-center justify-center">
+                                    <Clock className="text-yellow-600" size={24} />
                                 </div>
                                 <div>
-                                    <p className="text-sm text-gray-500">Pending</p>
+                                    <p className="text-sm font-semibold text-gray-400">Pending</p>
                                     <p className="text-2xl font-bold text-gray-800">
                                         {peminjaman.filter(p => p.status === 'pending').length}
                                     </p>
                                 </div>
                             </div>
                         </div>
-                        <div className="bg-white rounded-2xl p-6 shadow-sm">
+                        <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
                             <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
-                                    <AlertTriangle className="text-red-600" />
+                                <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center">
+                                    <AlertTriangle className="text-red-600" size={24} />
                                 </div>
                                 <div>
-                                    <p className="text-sm text-gray-500">Terlambat</p>
+                                    <p className="text-sm font-semibold text-gray-400">Terlambat</p>
                                     <p className="text-2xl font-bold text-gray-800">
                                         {peminjaman.filter(p => p.status === 'dipinjam' && isOverdue(p.tanggal_pinjam)).length}
                                     </p>
@@ -222,9 +227,9 @@ export default function PengembalianPage() {
                     {/* Search */}
                     <div className="flex justify-end mb-6">
                         <div className="relative">
-                            <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                             <input
-                                className="border rounded-xl pl-10 pr-4 py-2 w-64 bg-white"
+                                className="border border-gray-200 rounded-2xl pl-10 pr-4 py-2 w-72 bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all shadow-sm"
                                 placeholder="Cari peminjam atau barang..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -233,111 +238,107 @@ export default function PengembalianPage() {
                     </div>
 
                     {/* Table */}
-                    <div className="bg-white rounded-3xl shadow-lg overflow-hidden">
+                    <div className="bg-white rounded-[2rem] shadow-xl overflow-hidden border border-gray-50">
                         {loading ? (
                             <div className="p-12">
                                 <LoadingSpinner />
                             </div>
                         ) : filteredPeminjaman.length === 0 ? (
-                            <div className="p-12 text-center">
-                                <RotateCcw className="mx-auto text-gray-300 mb-4" size={48} />
-                                <p className="text-gray-500">Tidak ada barang yang perlu dikembalikan</p>
+                            <div className="p-20 text-center">
+                                <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-dashed border-gray-100">
+                                    <RotateCcw className="text-gray-300" size={32} />
+                                </div>
+                                <h3 className="text-lg font-bold text-gray-800 mb-1">Tidak Ada Tagihan</h3>
+                                <p className="text-gray-500">Tidak ada barang yang perlu dikonfirmasi saat ini.</p>
                             </div>
                         ) : (
-                            <table className="w-full">
-                                <thead className="bg-gray-50 text-gray-500 text-sm">
-                                    <tr>
-                                        {role !== 'pegawai' && (
-                                            <th className="px-6 py-4 text-left">Peminjam</th>
-                                        )}
-                                        <th className="px-6 py-4 text-left">Barang</th>
-                                        <th className="px-6 py-4 text-left">Tanggal Pinjam</th>
-                                        <th className="px-6 py-4 text-left">Status</th>
-                                        <th className="px-6 py-4 text-left">Aksi</th>
-                                    </tr>
-                                </thead>
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="bg-gray-50/50 text-gray-400 text-xs uppercase tracking-wider font-bold">
+                                        <tr>
+                                            <th className="px-8 py-5 text-left border-b border-gray-50">Peminjam</th>
+                                            <th className="px-8 py-5 text-left border-b border-gray-50">Barang</th>
+                                            <th className="px-8 py-5 text-left border-b border-gray-50">Tanggal Pinjam</th>
+                                            <th className="px-8 py-5 text-left border-b border-gray-50">Status</th>
+                                            <th className="px-8 py-5 text-center border-b border-gray-50">Aksi</th>
+                                        </tr>
+                                    </thead>
 
-                                <tbody className="divide-y">
-                                    {filteredPeminjaman.map((item) => (
-                                        <tr key={item.id_peminjaman} className="hover:bg-gray-50">
-                                            {role !== 'pegawai' && (
-                                                <td className="px-6 py-4">
-                                                    <div>
-                                                        <p className="font-medium text-gray-800">
-                                                            {item.pegawai?.nama || 'Unknown'}
-                                                        </p>
-                                                        <p className="text-sm text-gray-400">
-                                                            {item.pegawai?.email}
-                                                        </p>
+                                    <tbody className="divide-y divide-gray-50">
+                                        {filteredPeminjaman
+                                            .filter(item => item.status === 'konfirmasi_pengembalian')
+                                            .map((item) => (
+                                            <tr key={item.id_peminjaman} className="group hover:bg-gray-50/50 transition-colors">
+                                                <td className="px-8 py-5">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-700 font-bold shadow-sm">
+                                                            {item.pegawai?.nama?.charAt(0)}
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-bold text-gray-800">
+                                                                {item.pegawai?.nama || 'Unknown'}
+                                                            </p>
+                                                            <p className="text-xs text-gray-400 font-medium tracking-tight">
+                                                                {item.pegawai?.email}
+                                                            </p>
+                                                        </div>
                                                     </div>
                                                 </td>
-                                            )}
-                                            <td className="px-6 py-4">
-                                                <div className="space-y-1">
-                                                    {item.detail_peminjaman.map((detail) => (
-                                                        <div key={detail.id} className="flex items-center gap-2">
-                                                            <span className="text-gray-800">
-                                                                {detail.inventaris?.nama}
-                                                            </span>
-                                                            <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">
-                                                                x{detail.jumlah}
-                                                            </span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div>
-                                                    <p className="text-gray-800">
-                                                        {new Date(item.tanggal_pinjam).toLocaleDateString('id-ID', {
-                                                            day: 'numeric',
-                                                            month: 'long',
-                                                            year: 'numeric'
-                                                        })}
-                                                    </p>
-                                                    {isOverdue(item.tanggal_pinjam) && item.status === 'dipinjam' && (
-                                                        <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
-                                                            <AlertTriangle size={12} /> Terlambat
+                                                <td className="px-8 py-5">
+                                                    <div className="space-y-1.5 text-sm">
+                                                        {item.detail_peminjaman.map((detail) => (
+                                                            <div key={detail.id} className="flex items-center gap-2">
+                                                                <div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div>
+                                                                <span className="font-bold text-gray-800">
+                                                                    {detail.inventaris?.nama}
+                                                                </span>
+                                                                <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-bold">
+                                                                    x{detail.jumlah}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-5 font-bold text-gray-700">
+                                                    <div>
+                                                        <p>
+                                                            {new Date(item.tanggal_pinjam).toLocaleDateString('id-ID', {
+                                                                day: 'numeric',
+                                                                month: 'long',
+                                                                year: 'numeric'
+                                                            })}
                                                         </p>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                {getStatusBadge(item.status)}
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                {item.status === 'dipinjam' && (
-                                                    role === 'pegawai' ? (
-                                                        <button
-                                                            onClick={() => handleRequestReturn(item.id_peminjaman)}
-                                                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-                                                        >
-                                                            <RotateCcw size={16} />
-                                                            Ajukan Pengembalian
-                                                        </button>
-                                                    ) : (
+                                                        {isOverdue(item.tanggal_pinjam) && (
+                                                            <p className="text-[10px] text-red-500 flex items-center gap-1 mt-1 font-bold">
+                                                                <AlertTriangle size={10} /> Terlambat
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-8 py-5">
+                                                    {getStatusBadge(item.status)}
+                                                </td>
+                                                <td className="px-8 py-5">
+                                                    <div className="flex justify-center">
                                                         <button
                                                             onClick={() => handleReturn(item.id_peminjaman)}
                                                             disabled={processingId === item.id_peminjaman}
-                                                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
+                                                            className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-2xl flex items-center gap-2 transition-all font-bold shadow-lg shadow-green-100 hover:scale-105 active:scale-95 disabled:hover:scale-100 disabled:opacity-50"
                                                         >
                                                             {processingId === item.id_peminjaman ? (
                                                                 <LoadingSpinner size="sm" />
                                                             ) : (
-                                                                <CheckCircle size={16} />
+                                                                <CheckCircle size={18} />
                                                             )}
                                                             Konfirmasi Kembali
                                                         </button>
-                                                    )
-                                                )}
-                                                {item.status === 'pending' && role !== 'pegawai' && (
-                                                    <span className="text-gray-400 text-sm">Menunggu persetujuan</span>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         )}
                     </div>
                 </div>
