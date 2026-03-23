@@ -38,7 +38,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const fetchProfile = async (sessionUser: any) => {
             if (!mounted) return;
             try {
-                setLoading(true);
+                // Hanya tampilkan loading jika belum ada data user (initial load atau post-logout)
+                if (!user) {
+                    setLoading(true);
+                }
+                
                 const { data, error } = await supabase
                     .from('tb_user')
                     .select('id, nama, username, role, email')
@@ -47,7 +51,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                 if (mounted) {
                     if (data) {
-                        setUser({ id: data.id, nama: data.nama, username: data.username, role: data.role, email: data.email });
+                        const newUser = { id: data.id, nama: data.nama, username: data.username, role: data.role, email: data.email };
+                        setUser(newUser);
                         setRole(data.role);
                     } else {
                         setUser(null);

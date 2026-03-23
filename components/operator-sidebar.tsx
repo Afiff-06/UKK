@@ -30,8 +30,12 @@ export default function OperatorSidebar({ children }: { children: React.ReactNod
     const pathname = usePathname();
     const { logout, user, loading } = useAuth();
 
-    if (loading || !user) {
+    if (loading && !user) {
         return <FullPageLoader />;
+    }
+
+    if (!user) {
+        return null;
     }
 
     return (
