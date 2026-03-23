@@ -54,24 +54,10 @@ interface RiwayatPeminjaman {
     }[];
 }
 
-interface RiwayatPeminjamanRow {
-    id_peminjaman: string;
-    tanggal_pinjam: string;
-    tanggal_kembali: string | null;
-    status: string;
-    pegawai?: { nama: string; email: string }[] | null;
-    detail_peminjaman?: {
-        id: string;
-        jumlah: number;
-        inventaris?: { nama: string; kode_inventaris: number }[] | null;
-    }[] | null;
-}
-
 export default function Peminjaman() {
     const [items, setItems] = useState<SelectedItem[]>([]);
     const [inventaris, setInventaris] = useState<Inventaris[]>([]);
     const [users, setUsers] = useState<User[]>([]);
-    const [riwayatPeminjaman, setRiwayatPeminjaman] = useState<RiwayatPeminjaman[]>([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [selectedPegawai, setSelectedPegawai] = useState<User | null>(null);
@@ -91,7 +77,7 @@ export default function Peminjaman() {
         if (!tanggalPinjam) {
             const today = new Date();
             setTanggalPinjam(today.toISOString().split('T')[0]);
-            
+
             const nextWeek = new Date();
             nextWeek.setDate(today.getDate() + 7);
             setTanggalKembali(nextWeek.toISOString().split('T')[0]);
