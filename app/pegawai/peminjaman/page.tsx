@@ -115,6 +115,7 @@ export default function Peminjaman() {
                         inventaris:id_inventaris (nama, kode_inventaris)
                     )
                 `)
+                .in('status', ['pending', 'konfirmasi_peminjaman', 'dipinjam'])
                 .order("tanggal_pinjam", { ascending: false });
 
             if (currentRole === "pegawai" && currentProfile?.id) {
@@ -163,9 +164,9 @@ export default function Peminjaman() {
                item.id_peminjaman.toLowerCase().includes(searchQuery.toLowerCase());
     });
 
+    const jumlahAktif = riwayatPeminjaman.filter((item) => item.status === "dipinjam").length;
     const jumlahMenunggu = riwayatPeminjaman.filter((item) => ["pending", "konfirmasi_peminjaman"].includes(item.status)).length;
     const jumlahTerlambat = riwayatPeminjaman.filter((item) => isOverdue(item.tanggal_pinjam, item.status)).length;
-    const jumlahAktif = riwayatPeminjaman.filter((item) => ["pending", "konfirmasi_peminjaman", "dipinjam"].includes(item.status)).length;
 
     if (loading) {
         return (
@@ -223,7 +224,7 @@ export default function Peminjaman() {
 
                     <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
                         <div className="p-6 border-b border-gray-50 flex items-center justify-between bg-white/50 backdrop-blur-sm sticky top-0 z-10">
-                            <h2 className="text-xl font-bold text-gray-800">Daftar Peminjaman</h2>
+                            <h2 className="text-xl font-bold text-gray-800">Daftar Peminjaman Aktif</h2>
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                                 <input

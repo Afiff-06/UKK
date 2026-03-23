@@ -54,7 +54,7 @@ export default function PengembalianPage() {
                         inventaris:id_inventaris (id_inventaris, nama, kode_inventaris, jumlah)
                     )
                 `)
-                .in('status', ['dipinjam', 'pending', 'konfirmasi_pengembalian', 'dikembalikan'])
+                .in('status', ['konfirmasi_pengembalian', 'dikembalikan'])
                 .order('tanggal_pinjam', { ascending: false });
 
             // If pegawai, only show their own borrowings
@@ -204,47 +204,21 @@ export default function PengembalianPage() {
                     <p className="text-gray-500 mb-6">Konfirmasi pengembalian barang dari pegawai</p>
 
                     {/* Summary Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                        <div className="bg-white rounded-2xl p-6 shadow-sm">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                                    <Package className="text-blue-600" />
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">Total Dipinjam</p>
-                                    <p className="text-2xl font-bold text-gray-800">
-                                        {peminjaman.filter(p => p.status === 'dipinjam').length}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                         <div className="bg-white rounded-2xl p-6 shadow-sm">
                             <div className="flex items-center gap-4">
                                 <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
                                     <Clock className="text-yellow-600" />
                                 </div>
                                 <div>
-                                    <p className="text-sm text-gray-500">Pending</p>
+                                    <p className="text-sm text-gray-500">Menunggu Konfirmasi</p>
                                     <p className="text-2xl font-bold text-gray-800">
-                                        {peminjaman.filter(p => p.status === 'pending').length}
+                                        {peminjaman.filter(p => ["pending", "konfirmasi_pengembalian"].includes(p.status)).length}
                                     </p>
                                 </div>
                             </div>
                         </div>
-                        <div className="bg-white rounded-2xl p-6 shadow-sm">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
-                                    <AlertTriangle className="text-red-600" />
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">Terlambat</p>
-                                    <p className="text-2xl font-bold text-gray-800">
-                                        {peminjaman.filter(p => p.status === 'dipinjam' && isOverdue(p.tanggal_pinjam)).length}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="bg-white rounded-2xl p-6 shadow-sm">
+                        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                             <div className="flex items-center gap-4">
                                 <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
                                     <CheckCircle className="text-green-600" />
@@ -267,7 +241,6 @@ export default function PengembalianPage() {
                             onChange={(e) => setStatusFilter(e.target.value)}
                         >
                             <option value="all">Semua Status</option>
-                            <option value="dipinjam">Dipinjam</option>
                             <option value="konfirmasi_pengembalian">Menunggu Konfirmasi</option>
                             <option value="dikembalikan">Selesai</option>
                         </select>

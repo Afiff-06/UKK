@@ -116,6 +116,7 @@ export default function Peminjaman() {
                         inventaris:id_inventaris (id_inventaris, nama, kode_inventaris)
                     )
                 `)
+                .in('status', ['pending', 'konfirmasi_peminjaman', 'dipinjam'])
                 .order("tanggal_pinjam", { ascending: false });
 
             if (error) throw error;
@@ -245,9 +246,9 @@ export default function Peminjaman() {
 
     // Form helper functions removed
 
-    const jumlahMenunggu = riwayatPeminjaman.filter((item) => item.status === "konfirmasi_peminjaman").length;
+    const jumlahAktif = riwayatPeminjaman.filter((item) => item.status === "dipinjam").length;
+    const jumlahMenunggu = riwayatPeminjaman.filter((item) => ["pending", "konfirmasi_peminjaman"].includes(item.status)).length;
     const jumlahTerlambat = riwayatPeminjaman.filter((item) => isOverdue(item.tanggal_pinjam, item.status)).length;
-    const jumlahAktif = riwayatPeminjaman.filter((item) => ["konfirmasi_peminjaman", "dipinjam"].includes(item.status)).length;
 
     if (loading) {
         return (
@@ -325,8 +326,8 @@ export default function Peminjaman() {
 
                     <div className="bg-white rounded-3xl shadow-lg overflow-hidden mt-8 max-w-full">
                         <div className="px-8 py-6 border-b">
-                            <h2 className="text-2xl font-semibold text-gray-800">Riwayat Peminjaman</h2>
-                            <p className="text-sm text-gray-500 mt-1">Pantau pengajuan yang menunggu, peminjaman aktif, dan barang yang sudah melewati batas waktu.</p>
+                            <h2 className="text-2xl font-semibold text-gray-800">Daftar Peminjaman Aktif</h2>
+                            <p className="text-sm text-gray-500 mt-1">Pantau pengajuan yang menunggu, peminjaman barang aktif, dan barang yang terlambat.</p>
                         </div>
 
                         {riwayatPeminjaman.length === 0 ? (
