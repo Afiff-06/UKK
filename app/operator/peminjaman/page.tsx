@@ -13,6 +13,8 @@ import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import LoadingSpinner from "@/components/loading-spinner";
+import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
 
 // Form-related interfaces removed
 
@@ -46,6 +48,7 @@ export default function Peminjaman() {
     const [riwayatPeminjaman, setRiwayatPeminjaman] = useState<RiwayatPeminjaman[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
+    const router = useRouter()
 
     const { role, profile } = useAuth();
     const supabase = createClient();
@@ -229,7 +232,11 @@ export default function Peminjaman() {
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-3xl shadow-lg overflow-hidden mt-8 max-w-4xl">
+                    <div className="flex justify-end">
+                        <Button className="ml-auto" onClick={() => router.push("/operator/peminjaman/form")}>Tambah Peminjaman</Button>
+                    </div>
+
+                    <div className="bg-white rounded-3xl shadow-lg overflow-hidden mt-8 max-w-full">
                         <div className="px-8 py-6 border-b">
                             <h2 className="text-2xl font-semibold text-gray-800">Riwayat Peminjaman</h2>
                             <p className="text-sm text-gray-500 mt-1">Pantau pengajuan yang menunggu, peminjaman aktif, dan barang yang sudah melewati batas waktu.</p>
