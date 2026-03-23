@@ -27,7 +27,7 @@ interface RiwayatPeminjaman {
     detail_peminjaman: {
         id: string;
         jumlah: number;
-        inventaris: { nama: string; kode_inventaris: number };
+        inventaris: { id_inventaris: string; nama: string; kode_inventaris: number };
     }[];
 }
 
@@ -48,6 +48,7 @@ export default function Peminjaman() {
     const [riwayatPeminjaman, setRiwayatPeminjaman] = useState<RiwayatPeminjaman[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
+    const [processingId, setProcessingId] = useState<string | null>(null);
     const router = useRouter()
 
     const { role, profile } = useAuth();
@@ -112,14 +113,12 @@ export default function Peminjaman() {
                     detail_peminjaman (
                         id,
                         jumlah,
-                        inventaris:id_inventaris (nama, kode_inventaris)
+                        inventaris:id_inventaris (id_inventaris, nama, kode_inventaris)
                     )
                 `)
                 .order("tanggal_pinjam", { ascending: false });
 
             if (error) throw error;
-
-            console.log(data)
 
             const riwayat = ((data || []) as any[]).map((item) => ({
                 id_peminjaman: item.id_peminjaman,
@@ -140,7 +139,95 @@ export default function Peminjaman() {
         }
     }, [supabase]);
 
-    // Form-related logic and effects removed
+    const handleApproveReturn = async (id: string) => {
+        if (!confirm('Konfirmasi barang ini telah dikembalikan?')) return;
+
+        setProcessingId(id);
+        try {
+            const pinjaman = riwayatPeminjaman.find(p => p.id_peminjaman === id);
+            if (!pinjaman) return;
+
+            // 1. Update each item's stock
+            for (const detail of pinjaman.detail_peminjaman) {
+                const { data: inv } = await supabase
+                    .from('inventaris')
+                    .select('jumlah')
+                    .eq('id_inventaris', detail.inventaris.id_inventaris)
+                    .single();
+
+                if (inv) {
+                    await supabase
+                        .from('inventaris')
+                        .update({ jumlah: inv.jumlah + detail.jumlah })
+                        .eq('id_inventaris', detail.inventaris.id_inventaris);
+                }
+            }
+
+            // 2. Update status and return date
+            const { error } = await supabase
+                .from('peminjaman')
+                .update({
+                    status: 'dikembalikan',
+                    tanggal_kembali: new Date().toISOString().split('T')[0]
+                })
+                .eq('id_peminjaman', id);
+
+            if (error) throw error;
+
+            alert('Pengembalian berhasil disetujui');
+            fetchRiwayatPeminjaman();
+        } catch (error) {
+            console.error('Error approving return:', error);
+            alert('Gagal menyetujui pengembalian');
+        } finally {
+            setProcessingId(null);
+        }
+    };
+
+    const handleApproveBorrow = async (id: string) => {
+        if (!confirm('Setujui peminjaman ini?')) return;
+
+        setProcessingId(id);
+        try {
+            const pinjaman = riwayatPeminjaman.find(p => p.id_peminjaman === id);
+            if (!pinjaman) return;
+
+
+            // 1. Check & Update each item's stock
+            for (const detail of pinjaman.detail_peminjaman) {
+                const { data: inv } = await supabase
+                    .from('inventaris')
+                    .select('jumlah')
+                    .eq('id_inventaris', detail.inventaris.id_inventaris)
+                    .single();
+
+                if (!inv || inv.jumlah < detail.jumlah) {
+                    throw new Error(`Stok barang tidak mencukupi`);
+                }
+
+                await supabase
+                    .from('inventaris')
+                    .update({ jumlah: inv.jumlah - detail.jumlah })
+                    .eq('id_inventaris', detail.inventaris.id_inventaris);
+            }
+
+            // 2. Update status
+            const { error } = await supabase
+                .from('peminjaman')
+                .update({ status: 'dipinjam' })
+                .eq('id_peminjaman', id);
+
+            if (error) throw error;
+
+            alert('Peminjaman berhasil disetujui');
+            fetchRiwayatPeminjaman();
+        } catch (error: any) {
+            console.error('Error approving borrow:', error);
+            alert(error.message);
+        } finally {
+            setProcessingId(null);
+        }
+    };
 
     useEffect(() => {
         const fetchData = async () => {
@@ -257,6 +344,7 @@ export default function Peminjaman() {
                                             <th className="px-6 py-4 text-center">Jumlah</th>
                                             <th className="px-6 py-4 text-left">Tanggal Pinjam</th>
                                             <th className="px-6 py-4 text-left">Status</th>
+                                            <th className="px-6 py-4 text-center">Aksi</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100">
@@ -306,6 +394,31 @@ export default function Peminjaman() {
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         {getStatusBadge(item.status, item.tanggal_pinjam)}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        {item.status === 'konfirmasi_pengembalian' && (
+                                                            <button
+                                                                onClick={() => handleApproveReturn(item.id_peminjaman)}
+                                                                disabled={!!processingId}
+                                                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-md shadow-green-100 flex items-center gap-2 mx-auto"
+                                                            >
+                                                                {processingId === item.id_peminjaman ? <LoadingSpinner size="sm" /> : <CheckCircle2 size={16} />}
+                                                                Terima Kembali
+                                                            </button>
+                                                        )}
+                                                        {item.status === 'konfirmasi_peminjaman' && (
+                                                            <button
+                                                                onClick={() => handleApproveBorrow(item.id_peminjaman)}
+                                                                disabled={!!processingId}
+                                                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-md shadow-blue-100 flex items-center gap-2 mx-auto"
+                                                            >
+                                                                {processingId === item.id_peminjaman ? <LoadingSpinner size="sm" /> : <CheckCircle2 size={16} />}
+                                                                Setujui Pinjam
+                                                            </button>
+                                                        )}
+                                                        {['dipinjam', 'dikembalikan', 'ditolak'].includes(item.status) && (
+                                                            <span className="text-gray-400 text-xs">-</span>
+                                                        )}
                                                     </td>
                                                 </tr>
                                             ))}
