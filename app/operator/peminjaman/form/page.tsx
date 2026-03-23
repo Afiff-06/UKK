@@ -19,6 +19,7 @@ import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import LoadingSpinner from "@/components/loading-spinner";
+import { useRouter } from "next/navigation";
 
 interface Inventaris {
     id_inventaris: string;
@@ -82,6 +83,7 @@ export default function Peminjaman() {
 
     const { role, profile } = useAuth();
     const supabase = createClient();
+    const router = useRouter()
 
     const isOverdue = (tanggalPinjam: string, status: string) => {
         if (status !== "disetujui") return false;
@@ -90,43 +92,6 @@ export default function Peminjaman() {
         const today = new Date();
         const diffDays = Math.floor((today.getTime() - borrowed.getTime()) / (1000 * 60 * 60 * 24));
         return diffDays > 7;
-    };
-
-    const getStatusBadge = (status: string, tanggalPinjam: string) => {
-        if (isOverdue(tanggalPinjam, status)) {
-            return (
-                <span className="flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm">
-                    <AlertTriangle size={14} /> Terlambat
-                </span>
-            );
-        }
-
-        switch (status) {
-            case "pending":
-                return (
-                    <span className="flex items-center gap-1 px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-sm">
-                        <Clock size={14} /> Menunggu
-                    </span>
-                );
-            case "disetujui":
-                return (
-                    <span className="flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
-                        <CheckCircle2 size={14} /> Dipinjam
-                    </span>
-                );
-            case "dikembalikan":
-                return (
-                    <span className="flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
-                        <CheckCircle2 size={14} /> Dikembalikan
-                    </span>
-                );
-            default:
-                return (
-                    <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
-                        {status}
-                    </span>
-                );
-        }
     };
 
     // Initialize date on client side to avoid Next.js 16 prerender issues
@@ -269,6 +234,7 @@ export default function Peminjaman() {
             alert('Gagal membuat peminjaman');
         } finally {
             setSubmitting(false);
+            router.push('/operator/peminjaman');
         }
     };
 
@@ -281,10 +247,6 @@ export default function Peminjaman() {
         usr.nama.toLowerCase().includes(searchPegawai.toLowerCase()) ||
         usr.email.toLowerCase().includes(searchPegawai.toLowerCase())
     );
-
-    const jumlahMenunggu = riwayatPeminjaman.filter((item) => item.status === "pending").length;
-    const jumlahTerlambat = riwayatPeminjaman.filter((item) => isOverdue(item.tanggal_pinjam, item.status)).length;
-    const jumlahAktif = riwayatPeminjaman.filter((item) => ["pending", "disetujui"].includes(item.status)).length;
 
     if (loading) {
         return (
@@ -312,42 +274,6 @@ export default function Peminjaman() {
                             : 'Proses peminjaman barang untuk pegawai'
                         }
                     </p>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 max-w-4xl">
-                        <div className="bg-white rounded-2xl p-6 shadow-sm">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                                    <Package className="text-blue-600" />
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">Peminjaman Aktif</p>
-                                    <p className="text-2xl font-bold text-gray-800">{jumlahAktif}</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="bg-white rounded-2xl p-6 shadow-sm">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
-                                    <Clock className="text-yellow-600" />
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">Menunggu</p>
-                                    <p className="text-2xl font-bold text-gray-800">{jumlahMenunggu}</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="bg-white rounded-2xl p-6 shadow-sm">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
-                                    <AlertTriangle className="text-red-600" />
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">Terlambat</p>
-                                    <p className="text-2xl font-bold text-gray-800">{jumlahTerlambat}</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
 
                     <div className="bg-white rounded-3xl shadow-lg p-8 space-y-8 max-w-4xl">
                         {/* PILIH PEGAWAI */}
