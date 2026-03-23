@@ -76,6 +76,7 @@ export default function Peminjaman() {
     const [submitting, setSubmitting] = useState(false);
     const [selectedPegawai, setSelectedPegawai] = useState<User | null>(null);
     const [tanggalPinjam, setTanggalPinjam] = useState("");
+    const [tanggalKembali, setTanggalKembali] = useState("");
     const [showItemSelector, setShowItemSelector] = useState(false);
     const [showPegawaiSelector, setShowPegawaiSelector] = useState(false);
     const [searchItem, setSearchItem] = useState("");
@@ -88,7 +89,12 @@ export default function Peminjaman() {
     // Initialize date on client side to avoid Next.js 16 prerender issues
     useEffect(() => {
         if (!tanggalPinjam) {
-            setTanggalPinjam(new Date().toISOString().split('T')[0]);
+            const today = new Date();
+            setTanggalPinjam(today.toISOString().split('T')[0]);
+            
+            const nextWeek = new Date();
+            nextWeek.setDate(today.getDate() + 7);
+            setTanggalKembali(nextWeek.toISOString().split('T')[0]);
         }
     }, [tanggalPinjam]);
 
@@ -172,6 +178,7 @@ export default function Peminjaman() {
                     id_pegawai: selectedPegawai.id,
                     id_petugas: profile?.id,
                     tanggal_pinjam: tanggalPinjam,
+                    tanggal_kembali: tanggalKembali,
                     status: role === 'pegawai' ? 'pending' : 'dipinjam',
                 })
                 .select()
@@ -459,16 +466,28 @@ export default function Peminjaman() {
                         </Section>
 
                         {/* TANGGAL */}
-                        <Section title="Tanggal Pinjam" icon="📅">
-                            <div className="relative max-w-xs">
-                                <input
-                                    type="date"
-                                    value={tanggalPinjam}
-                                    onChange={(e) => setTanggalPinjam(e.target.value)}
-                                    className="w-full border rounded-xl px-4 py-3"
-                                />
-                            </div>
-                        </Section>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <Section title="Tanggal Pinjam" icon="📅">
+                                <div className="relative">
+                                    <input
+                                        type="date"
+                                        value={tanggalPinjam}
+                                        onChange={(e) => setTanggalPinjam(e.target.value)}
+                                        className="w-full border rounded-xl px-4 py-3"
+                                    />
+                                </div>
+                            </Section>
+                            <Section title="Tanggal Kembali" icon="📅">
+                                <div className="relative">
+                                    <input
+                                        type="date"
+                                        value={tanggalKembali}
+                                        onChange={(e) => setTanggalKembali(e.target.value)}
+                                        className="w-full border rounded-xl px-4 py-3"
+                                    />
+                                </div>
+                            </Section>
+                        </div>
 
                         {/* ACTION */}
                         <div className="flex justify-end gap-3 pt-4">

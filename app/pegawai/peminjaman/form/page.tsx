@@ -46,6 +46,7 @@ export default function PeminjamanForm() {
     const [submitting, setSubmitting] = useState(false);
     const [selectedPegawai, setSelectedPegawai] = useState<User | null>(null);
     const [tanggalPinjam, setTanggalPinjam] = useState("");
+    const [tanggalKembali, setTanggalKembali] = useState("");
     const [showItemSelector, setShowItemSelector] = useState(false);
     const [showPegawaiSelector, setShowPegawaiSelector] = useState(false);
     const [searchItem, setSearchItem] = useState("");
@@ -57,7 +58,12 @@ export default function PeminjamanForm() {
 
     // Initialize date on client side
     useEffect(() => {
-        setTanggalPinjam(new Date().toISOString().split('T')[0]);
+        const today = new Date();
+        setTanggalPinjam(today.toISOString().split('T')[0]);
+        
+        const nextWeek = new Date();
+        nextWeek.setDate(today.getDate() + 7);
+        setTanggalKembali(nextWeek.toISOString().split('T')[0]);
     }, []);
 
     useEffect(() => {
@@ -140,6 +146,7 @@ export default function PeminjamanForm() {
                     id_pegawai: selectedPegawai.id,
                     id_petugas: profile?.id,
                     tanggal_pinjam: tanggalPinjam,
+                    tanggal_kembali: tanggalKembali,
                     status: role === 'pegawai' ? 'konfirmasi_peminjaman' : 'dipinjam',
                 })
                 .select()
@@ -412,16 +419,28 @@ export default function PeminjamanForm() {
                         </Section>
 
                         {/* TANGGAL */}
-                        <Section title="Tanggal Pinjam" icon="📅">
-                            <div className="relative max-w-xs">
-                                <input
-                                    type="date"
-                                    value={tanggalPinjam}
-                                    onChange={(e) => setTanggalPinjam(e.target.value)}
-                                    className="w-full border rounded-xl px-4 py-3 bg-white"
-                                />
-                            </div>
-                        </Section>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <Section title="Tanggal Pinjam" icon="📅">
+                                <div className="relative">
+                                    <input
+                                        type="date"
+                                        value={tanggalPinjam}
+                                        onChange={(e) => setTanggalPinjam(e.target.value)}
+                                        className="w-full border rounded-xl px-4 py-3 bg-white"
+                                    />
+                                </div>
+                            </Section>
+                            <Section title="Tanggal Kembali" icon="📅">
+                                <div className="relative">
+                                    <input
+                                        type="date"
+                                        value={tanggalKembali}
+                                        onChange={(e) => setTanggalKembali(e.target.value)}
+                                        className="w-full border rounded-xl px-4 py-3 bg-white"
+                                    />
+                                </div>
+                            </Section>
+                        </div>
 
                         {/* ACTION */}
                         <div className="flex flex-col md:flex-row justify-end gap-3 pt-4">
