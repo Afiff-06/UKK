@@ -72,7 +72,7 @@ export default function Peminjaman() {
         }
 
         switch (status) {
-            case "pending":
+            case "konfirmasi_peminjaman":
                 return (
                     <span className="flex items-center gap-1 px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-sm">
                         <Clock size={14} /> Menunggu
@@ -158,9 +158,9 @@ export default function Peminjaman() {
 
     // Form helper functions removed
 
-    const jumlahMenunggu = riwayatPeminjaman.filter((item) => item.status === "pending").length;
+    const jumlahMenunggu = riwayatPeminjaman.filter((item) => item.status === "konfirmasi_peminjaman").length;
     const jumlahTerlambat = riwayatPeminjaman.filter((item) => isOverdue(item.tanggal_pinjam, item.status)).length;
-    const jumlahAktif = riwayatPeminjaman.filter((item) => ["pending", "dipinjam"].includes(item.status)).length;
+    const jumlahAktif = riwayatPeminjaman.filter((item) => ["konfirmasi_peminjaman", "dipinjam"].includes(item.status)).length;
 
     if (loading) {
         return (

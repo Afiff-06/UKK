@@ -9,6 +9,7 @@ import {
     Package,
     AlertTriangle,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
@@ -25,7 +26,7 @@ interface Peminjaman {
     detail_peminjaman: {
         id: string;
         jumlah: number;
-        inventaris: { nama: string; kode_inventaris: number };
+        inventaris: { nama: string; kode_inventaris: number } | { nama: string; kode_inventaris: number }[];
     }[];
 }
 
@@ -35,6 +36,7 @@ export default function PengembalianPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [processingId, setProcessingId] = useState<string | null>(null);
 
+    const router = useRouter();
     const { role, profile } = useAuth();
     const supabase = createClient();
 
@@ -143,7 +145,10 @@ export default function PengembalianPage() {
 
     const filteredPeminjaman = peminjaman.filter(item => {
         const pegawaiName = item.pegawai?.nama?.toLowerCase() || '';
-        const items = item.detail_peminjaman.map(d => d.inventaris?.nama?.toLowerCase()).join(' ');
+        const items = item.detail_peminjaman.map(d => {
+            const inv = Array.isArray(d.inventaris) ? d.inventaris[0] : d.inventaris;
+            return inv?.nama?.toLowerCase() || '';
+        }).join(' ');
         return pegawaiName.includes(searchQuery.toLowerCase()) ||
             items.includes(searchQuery.toLowerCase());
     });
@@ -191,13 +196,26 @@ export default function PengembalianPage() {
                 <Header title="Pengembalian" />
 
                 <div className="p-8">
-                    <h1 className="text-3xl font-bold mb-2 text-gray-800">Pengembalian Barang</h1>
-                    <p className="text-gray-500 mb-6">
-                        {role === 'pegawai'
-                            ? 'Daftar barang yang Anda pinjam'
-                            : 'Kelola pengembalian barang yang dipinjam'
-                        }
-                    </p>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                        <div>
+                            <h1 className="text-3xl font-bold mb-2 text-gray-800">Pengembalian Barang</h1>
+                            <p className="text-gray-500">
+                                {role === 'pegawai'
+                                    ? 'Daftar barang yang Anda pinjam'
+                                    : 'Kelola pengembalian barang yang dipinjam'
+                                }
+                            </p>
+                        </div>
+                        {role === 'pegawai' && (
+                            <button
+                                onClick={() => router.push('/pegawai/pengembalian/form')}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all shadow-lg shadow-blue-100 hover:scale-105 active:scale-95"
+                            >
+                                <RotateCcw size={20} />
+                                Mulai Pengembalian
+                            </button>
+                        )}
+                    </div>
 
                     {/* Summary Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -220,9 +238,9 @@ export default function PengembalianPage() {
                                     <Clock className="text-yellow-600" />
                                 </div>
                                 <div>
-                                    <p className="text-sm text-gray-500">Pending</p>
+                                    <p className="text-sm text-gray-500">Menunggu Verifikasi</p>
                                     <p className="text-2xl font-bold text-gray-800">
-                                        {peminjaman.filter(p => p.status === 'pending').length}
+                                        {peminjaman.filter(p => ["pending", "konfirmasi_pengembalian"].includes(p.status)).length}
                                     </p>
                                 </div>
                             </div>
@@ -297,16 +315,19 @@ export default function PengembalianPage() {
                                             )}
                                             <td className="px-6 py-4">
                                                 <div className="space-y-1">
-                                                    {item.detail_peminjaman.map((detail) => (
-                                                        <div key={detail.id} className="flex items-center gap-2">
-                                                            <span className="text-gray-800">
-                                                                {detail.inventaris?.nama}
-                                                            </span>
-                                                            <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">
-                                                                x{detail.jumlah}
-                                                            </span>
-                                                        </div>
-                                                    ))}
+                                                    {item.detail_peminjaman.map((detail) => {
+                                                        const inv = Array.isArray(detail.inventaris) ? detail.inventaris[0] : detail.inventaris;
+                                                        return (
+                                                            <div key={detail.id} className="flex items-center gap-2">
+                                                                <span className="text-gray-800">
+                                                                    {inv?.nama}
+                                                                </span>
+                                                                <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">
+                                                                    x{detail.jumlah}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
