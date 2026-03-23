@@ -105,8 +105,7 @@ export default function PengembalianPage() {
             const { error } = await supabase
                 .from('peminjaman')
                 .update({
-                    status: 'dikembalikan',
-                    tanggal_kembali: new Date().toISOString().split('T')[0]
+                    status: 'dikembalikan'
                 })
                 .eq('id_peminjaman', id);
 
