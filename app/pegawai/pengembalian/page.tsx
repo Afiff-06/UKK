@@ -34,7 +34,6 @@ export default function PengembalianPage() {
     const [peminjaman, setPeminjaman] = useState<Peminjaman[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
-    const [processingId, setProcessingId] = useState<string | null>(null);
 
     const router = useRouter();
     const { role, profile } = useAuth();
@@ -80,67 +79,6 @@ export default function PengembalianPage() {
         }
     }, [profile, role]);
 
-    const handleReturn = async (id: string) => {
-        if (!confirm('Konfirmasi pengembalian barang ini?')) return;
-
-        setProcessingId(id);
-        try {
-            // Get the peminjaman details to update stock
-            const pinjaman = peminjaman.find(p => p.id_peminjaman === id);
-
-            if (pinjaman) {
-                // Update stock for each item
-                for (const detail of pinjaman.detail_peminjaman) {
-                    const { error: stockError } = await supabase.rpc('increment_stock', {
-                        item_id: (detail.inventaris as any).id_inventaris,
-                        amount: detail.jumlah,
-                    });
-
-                    // If RPC doesn't exist, update directly
-                    if (stockError) {
-                        console.log('RPC not available, updating directly');
-                    }
-                }
-            }
-
-            // Update peminjaman status
-            const { error } = await supabase
-                .from('peminjaman')
-                .update({
-                    status: 'dikembalikan'
-                })
-                .eq('id_peminjaman', id);
-
-            if (error) throw error;
-
-            fetchPeminjaman();
-        } catch (error) {
-            console.error('Error processing return:', error);
-        } finally {
-            setProcessingId(null);
-        }
-    };
-
-    const handleRequestReturn = async (id: string) => {
-        if (!confirm('Konfirmasi pengajuan pengembalian barang ini?')) return;
-
-        setProcessingId(id);
-        try {
-            const { error } = await supabase
-                .from('peminjaman')
-                .update({ status: 'konfirmasi_pengembalian' })
-                .eq('id_peminjaman', id);
-
-            if (error) throw error;
-
-            fetchPeminjaman();
-        } catch (error) {
-            console.error('Error mengajukan pengembalian:', error);
-            alert('Gagal mengajukan pengembalian. Silakan coba lagi.');
-        } finally {
-            setProcessingId(null);
-        }
-    };
 
     const filteredPeminjaman = peminjaman.filter(item => {
         const pegawaiName = item.pegawai?.nama?.toLowerCase() || '';
@@ -163,7 +101,7 @@ export default function PengembalianPage() {
             case 'konfirmasi_pengembalian':
                 return (
                     <span className="flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
-                        <RotateCcw size={14} /> Menunggu Konfirmasi Pengembalian
+                        <Clock size={14} /> Menunggu Konfirmasi
                     </span>
                 );
             case 'pending':
@@ -287,31 +225,15 @@ export default function PengembalianPage() {
                             <table className="w-full">
                                 <thead className="bg-gray-50 text-gray-500 text-sm">
                                     <tr>
-                                        {role !== 'pegawai' && (
-                                            <th className="px-6 py-4 text-left">Peminjam</th>
-                                        )}
                                         <th className="px-6 py-4 text-left">Barang</th>
                                         <th className="px-6 py-4 text-left">Tanggal Pinjam</th>
-                                        <th className="px-6 py-4 text-left">Status</th>
-                                        <th className="px-6 py-4 text-left">Aksi</th>
+                                        <th className="px-6 py-4 text-left w-60">Status</th>
                                     </tr>
                                 </thead>
 
                                 <tbody className="divide-y">
                                     {filteredPeminjaman.map((item) => (
                                         <tr key={item.id_peminjaman} className="hover:bg-gray-50">
-                                            {role !== 'pegawai' && (
-                                                <td className="px-6 py-4">
-                                                    <div>
-                                                        <p className="font-medium text-gray-800">
-                                                            {item.pegawai?.nama || 'Unknown'}
-                                                        </p>
-                                                        <p className="text-sm text-gray-400">
-                                                            {item.pegawai?.email}
-                                                        </p>
-                                                    </div>
-                                                </td>
-                                            )}
                                             <td className="px-6 py-4">
                                                 <div className="space-y-1">
                                                     {item.detail_peminjaman.map((detail) => {
@@ -347,27 +269,6 @@ export default function PengembalianPage() {
                                             </td>
                                             <td className="px-6 py-4">
                                                 {getStatusBadge(item.status)}
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                {item.status === 'dipinjam' && (
-                                                    <button
-                                                        onClick={() => handleRequestReturn(item.id_peminjaman)}
-                                                        disabled={processingId === item.id_peminjaman}
-                                                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
-                                                    >
-                                                        {processingId === item.id_peminjaman ? (
-                                                            <LoadingSpinner size="sm" />
-                                                        ) : (
-                                                            <RotateCcw size={16} />
-                                                        )}
-                                                        Ajukan Pengembalian
-                                                    </button>
-                                                )}
-                                                {item.status === 'konfirmasi_pengembalian' && (
-                                                    <span className="text-blue-500 text-sm flex items-center gap-1">
-                                                        <Clock size={14} /> Menunggu dikonfirmasi operator
-                                                    </span>
-                                                )}
                                             </td>
                                         </tr>
                                     ))}
