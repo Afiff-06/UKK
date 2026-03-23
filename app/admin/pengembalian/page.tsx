@@ -53,7 +53,7 @@ export default function PengembalianPage() {
                         inventaris:id_inventaris (id_inventaris, nama, kode_inventaris, jumlah)
                     )
                 `)
-                .in('status', ['dipinjam', 'pending', 'konfirmasi_pengembalian'])
+                .in('status', ['dipinjam', 'pending', 'konfirmasi_pengembalian', 'dikembalikan'])
                 .order('tanggal_pinjam', { ascending: false });
 
             const { data, error } = await query;
@@ -155,6 +155,12 @@ export default function PengembalianPage() {
                         <Clock size={14} /> Pending
                     </span>
                 );
+            case 'dikembalikan':
+                return (
+                    <span className="flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
+                        <CheckCircle size={14} /> Dikembalikan
+                    </span>
+                );
             default:
                 return (
                     <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
@@ -222,6 +228,19 @@ export default function PengembalianPage() {
                                 </div>
                             </div>
                         </div>
+                        <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-green-50 rounded-2xl flex items-center justify-center">
+                                    <CheckCircle className="text-green-600" size={24} />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold text-gray-400">Selesai</p>
+                                    <p className="text-2xl font-bold text-gray-800">
+                                        {peminjaman.filter(p => p.status === 'dikembalikan').length}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Search */}
@@ -266,7 +285,6 @@ export default function PengembalianPage() {
 
                                     <tbody className="divide-y divide-gray-50">
                                         {filteredPeminjaman
-                                            .filter(item => item.status === 'konfirmasi_pengembalian')
                                             .map((item) => (
                                             <tr key={item.id_peminjaman} className="group hover:bg-gray-50/50 transition-colors">
                                                 <td className="px-8 py-5">
@@ -315,25 +333,29 @@ export default function PengembalianPage() {
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="px-8 py-5">
-                                                    {getStatusBadge(item.status)}
-                                                </td>
-                                                <td className="px-8 py-5">
-                                                    <div className="flex justify-center">
-                                                        <button
-                                                            onClick={() => handleReturn(item.id_peminjaman)}
-                                                            disabled={processingId === item.id_peminjaman}
-                                                            className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-2xl flex items-center gap-2 transition-all font-bold shadow-lg shadow-green-100 hover:scale-105 active:scale-95 disabled:hover:scale-100 disabled:opacity-50"
-                                                        >
-                                                            {processingId === item.id_peminjaman ? (
-                                                                <LoadingSpinner size="sm" />
+                                                    <td className="px-8 py-5">
+                                                        {getStatusBadge(item.status)}
+                                                    </td>
+                                                    <td className="px-8 py-5">
+                                                        <div className="flex justify-center">
+                                                            {item.status === 'konfirmasi_pengembalian' ? (
+                                                                <button
+                                                                    onClick={() => handleReturn(item.id_peminjaman)}
+                                                                    disabled={processingId === item.id_peminjaman}
+                                                                    className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-2xl flex items-center gap-2 transition-all font-bold shadow-lg shadow-green-100 hover:scale-105 active:scale-95 disabled:hover:scale-100 disabled:opacity-50"
+                                                                >
+                                                                    {processingId === item.id_peminjaman ? (
+                                                                        <LoadingSpinner size="sm" />
+                                                                    ) : (
+                                                                        <CheckCircle size={18} />
+                                                                    )}
+                                                                    Konfirmasi Kembali
+                                                                </button>
                                                             ) : (
-                                                                <CheckCircle size={18} />
+                                                                <span className="text-gray-400 text-sm italic font-medium">Selesai</span>
                                                             )}
-                                                            Konfirmasi Kembali
-                                                        </button>
-                                                    </div>
-                                                </td>
+                                                        </div>
+                                                    </td>
                                             </tr>
                                         ))}
                                     </tbody>

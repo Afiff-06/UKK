@@ -53,7 +53,7 @@ export default function PengembalianPage() {
                         inventaris:id_inventaris (id_inventaris, nama, kode_inventaris, jumlah)
                     )
                 `)
-                .in('status', ['dipinjam', 'pending', 'konfirmasi_pengembalian'])
+                .in('status', ['dipinjam', 'pending', 'konfirmasi_pengembalian', 'dikembalikan'])
                 .order('tanggal_pinjam', { ascending: false });
 
             // If pegawai, only show their own borrowings
@@ -165,6 +165,12 @@ export default function PengembalianPage() {
                         <Clock size={14} /> Pending
                     </span>
                 );
+            case 'dikembalikan':
+                return (
+                    <span className="flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
+                        <CheckCircle size={14} /> Dikembalikan
+                    </span>
+                );
             default:
                 return (
                     <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
@@ -232,6 +238,19 @@ export default function PengembalianPage() {
                                 </div>
                             </div>
                         </div>
+                        <div className="bg-white rounded-2xl p-6 shadow-sm">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                                    <CheckCircle className="text-green-600" />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-500">Selesai</p>
+                                    <p className="text-2xl font-bold text-gray-800">
+                                        {peminjaman.filter(p => p.status === 'dikembalikan').length}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Search */}
@@ -274,7 +293,6 @@ export default function PengembalianPage() {
 
                                 <tbody className="divide-y">
                                         {filteredPeminjaman
-                                            .filter(item => item.status === 'konfirmasi_pengembalian')
                                             .map((item) => (
                                                 <tr key={item.id_peminjaman} className="hover:bg-gray-50">
                                                     {role !== 'pegawai' && (
@@ -323,18 +341,22 @@ export default function PengembalianPage() {
                                                         {getStatusBadge(item.status)}
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        <button
-                                                            onClick={() => handleReturn(item.id_peminjaman)}
-                                                            disabled={processingId === item.id_peminjaman}
-                                                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
-                                                        >
-                                                            {processingId === item.id_peminjaman ? (
-                                                                <LoadingSpinner size="sm" />
-                                                            ) : (
-                                                                <CheckCircle size={16} />
-                                                            )}
-                                                            Konfirmasi Kembali
-                                                        </button>
+                                                        {item.status === 'konfirmasi_pengembalian' ? (
+                                                            <button
+                                                                onClick={() => handleReturn(item.id_peminjaman)}
+                                                                disabled={processingId === item.id_peminjaman}
+                                                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50 w-full justify-center"
+                                                            >
+                                                                {processingId === item.id_peminjaman ? (
+                                                                    <LoadingSpinner size="sm" />
+                                                                ) : (
+                                                                    <CheckCircle size={16} />
+                                                                )}
+                                                                Konfirmasi Kembali
+                                                            </button>
+                                                        ) : (
+                                                            <span className="text-gray-400 text-sm italic">Tidak ada aksi</span>
+                                                        )}
                                                     </td>
                                                 </tr>
                                             ))}
