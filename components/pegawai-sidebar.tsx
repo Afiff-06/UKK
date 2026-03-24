@@ -6,7 +6,6 @@ import {
     LayoutDashboard,
     ClipboardList,
     RotateCcw,
-    LogOut,
     Package
 } from "lucide-react";
 import { usePathname } from "next/navigation";
@@ -58,16 +57,6 @@ export default function PegawaiSidebar({ children }: { children: React.ReactNode
                         />
                     ))}
                 </nav>
-
-                <div className="p-4 border-t">
-                    <button
-                        onClick={logout}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-gray-600 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
-                    >
-                        <LogOut size={20} />
-                        <span>Logout</span>
-                    </button>
-                </div>
             </aside>
             {children}
         </div>
