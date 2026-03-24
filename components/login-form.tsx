@@ -1,8 +1,8 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 export function LoginForm({
@@ -10,11 +10,19 @@ export function LoginForm({
   ...props
 }: React.ComponentPropsWithoutRef<"div">) {
   const [showPassword, setShowPassword] = useState(false);
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const errorParam = searchParams.get('error');
+    if (errorParam === 'blocked') {
+      setError("Akun Anda telah ditangguhkan. Silakan hubungi admin.");
+    }
+  }, [searchParams]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,56 +31,38 @@ export function LoginForm({
     setError(null);
 
     try {
-      // Pertama, cek di tabel petugas (untuk admin/operator)
-      const { data: petugas, error: petugasError } = await supabase
-        .from('petugas')
-        .select('id_petugas, username, password, nama_petugas, level_id')
-        .eq('username', username)
+      // Login via Supabase Authentication
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      });
+
+      if (authError) {
+        throw new Error("Email atau password salah");
+      }
+
+      // Fetch role dari tb_user
+      const { data: userData, error: userError } = await supabase
+        .from('tb_user')
+        .select('role')
+        .eq('id', data.user.id)
         .single();
 
-      if (petugas && !petugasError) {
-        // Verifikasi password (simple comparison - dalam produksi gunakan hash)
-        if (petugas.password === password) {
-          // Login berhasil untuk petugas
-          // Simpan info ke localStorage untuk sementara (karena tidak menggunakan Supabase Auth)
-          localStorage.setItem('petugas_session', JSON.stringify({
-            id: petugas.id_petugas,
-            nama: petugas.nama_petugas,
-            username: petugas.username,
-            level_id: petugas.level_id,
-          }));
-
-          // Sign in dengan Supabase Auth menggunakan service account atau dummy
-          // Untuk sekarang, langsung redirect
-          if (petugas.level_id === 1) {
-            router.push("/admin/dashboard");
-          } else {
-            router.push("/operator/dashboard");
-          }
-          return;
-        } else {
-          throw new Error("Username atau password salah");
-        }
+      if (userError || !userData) {
+        throw new Error("Gagal memuat profil pengguna");
       }
 
-      // Jika tidak ditemukan di petugas, coba login dengan Supabase Auth (email)
-      // Cek apakah input adalah email
-      if (username.includes('@')) {
-        const { error: authError } = await supabase.auth.signInWithPassword({
-          email: username,
-          password,
-        });
+      // Redirect berdasarkan role
+      const role = userData.role;
+      // if (role === 'admin') {
+      //   router.push("/admin/dashboard");
+      // } else if (role === 'operator') {
+      //   router.push("/operator/dashboard");
+      // } else {
+      //   router.push("/pegawai/dashboard");
+      // }
 
-        if (authError) {
-          throw new Error("Email atau password salah");
-        }
-
-        router.push("/pegawai/dashboard");
-        return;
-      }
-
-      // Jika bukan email dan tidak ditemukan di petugas
-      throw new Error("Username tidak ditemukan");
+      router.refresh()
 
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "Terjadi kesalahan");
@@ -89,26 +79,26 @@ export function LoginForm({
           <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
             <span className="text-2xl">📦</span>
           </div>
-          <h1 className="text-3xl font-bold text-gray-800">Manajemen Aset</h1>
+          <h1 className="text-3xl font-bold text-gray-800">Inventaris</h1>
           <p className="text-gray-500 mt-2">Masuk ke akun Anda</p>
         </div>
 
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <form onSubmit={handleLogin}>
-            {/* Username/Email */}
+            {/* Email */}
             <div className="mb-5">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Username / Email
+                Email
               </label>
               <input
-                type="text"
-                id="username"
-                placeholder="Masukkan username atau email"
+                type="email"
+                id="email"
+                placeholder="Masukkan email"
                 required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full h-12 bg-gray-50 border border-gray-200 rounded-xl px-4 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full h-12 text-black bg-gray-50 border border-gray-200 rounded-xl px-4 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               />
             </div>
 
@@ -125,7 +115,7 @@ export function LoginForm({
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full h-12 bg-gray-50 border border-gray-200 rounded-xl px-4 pr-12 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full h-12 text-black bg-gray-50 border border-gray-200 rounded-xl px-4 pr-12 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
                 <button
                   type="button"
@@ -170,7 +160,7 @@ export function LoginForm({
 
           {/* Help Text */}
           <p className="text-center text-sm text-gray-500">
-            Gunakan username dari tabel petugas atau email yang terdaftar
+            Gunakan email dan password yang terdaftar
           </p>
         </div>
       </div>

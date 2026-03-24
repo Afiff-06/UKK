@@ -14,7 +14,7 @@ import { useAuth } from "@/lib/auth-context";
 import { FullPageLoader } from "./loading-spinner";
 
 const pegawaiMenu = [
-    { icon: <LayoutDashboard />, label: "Dashboard", path: "/pegawai/dashboard" },
+    { icon: <LayoutDashboard />, label: "Beranda", path: "/pegawai/dashboard" },
     { icon: <ClipboardList />, label: "Peminjaman", path: "/pegawai/peminjaman" },
     { icon: <RotateCcw />, label: "Pengembalian", path: "/pegawai/pengembalian" },
 ];
@@ -22,10 +22,14 @@ const pegawaiMenu = [
 export default function PegawaiSidebar({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
-    const { logout, loading } = useAuth();
+    const { logout, user, loading } = useAuth();
 
-    if (loading) {
+    if (loading && !user) {
         return <FullPageLoader />;
+    }
+
+    if (!user) {
+        return null;
     }
 
     return (

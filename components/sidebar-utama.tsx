@@ -24,20 +24,20 @@ interface MenuItem {
 
 const menuConfig: Record<string, MenuItem[]> = {
     admin: [
-        { icon: <LayoutDashboard />, label: "Dashboard", path: "/dashboard" },
-        { icon: <Users />, label: "Manajemen Pengguna", path: "/pengguna" },
-        { icon: <BookOpen />, label: "Peminjaman", path: "/peminjaman" },
-        { icon: <RotateCcw />, label: "Pengembalian", path: "/pengembalian" },
+        { icon: <LayoutDashboard />, label: "Beranda", path: "/admin/dashboard" },
+        { icon: <Users />, label: "Manajemen Pengguna", path: "/admin/pengguna" },
+        { icon: <BookOpen />, label: "Peminjaman", path: "/admin/peminjaman" },
+        { icon: <RotateCcw />, label: "Pengembalian", path: "/admin/pengembalian" },
         { icon: <FileText />, label: "Laporan", path: "/laporan" },
     ],
     operator: [
-        { icon: <LayoutDashboard />, label: "Dashboard", path: "/dashboard" },
+        { icon: <LayoutDashboard />, label: "Beranda", path: "/operator/dashboard" },
         { icon: <Package />, label: "Inventaris Barang", path: "/inventaris" },
         { icon: <BookOpen />, label: "Peminjaman", path: "/peminjaman" },
         { icon: <RotateCcw />, label: "Pengembalian", path: "/pengembalian" },
     ],
     pegawai: [
-        { icon: <LayoutDashboard />, label: "Dashboard", path: "/dashboard" },
+        { icon: <LayoutDashboard />, label: "Beranda", path: "/dashboard" },
         { icon: <ClipboardList />, label: "Peminjaman", path: "/peminjaman" },
         { icon: <RotateCcw />, label: "Pengembalian", path: "/pengembalian" },
     ],
@@ -92,7 +92,7 @@ export default function SidebarUtama({ children }: { children: React.ReactNode }
                     ))}
                 </nav>
 
-                <div className="p-4 border-t">
+                {/* <div className="p-4 border-t">
                     <button
                         onClick={logout}
                         className="w-full flex items-center gap-3 px-4 py-3 text-gray-600 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
@@ -100,7 +100,7 @@ export default function SidebarUtama({ children }: { children: React.ReactNode }
                         <LogOut size={20} />
                         <span>Logout</span>
                     </button>
-                </div>
+                </div> */}
             </aside>
             {children}
         </div>

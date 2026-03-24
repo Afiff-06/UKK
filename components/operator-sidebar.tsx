@@ -7,15 +7,20 @@ import {
     Package,
     BookOpen,
     RotateCcw,
-    LogOut
+    LogOut,
+    Box,
+    Home,
+    HomeIcon
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { FullPageLoader } from "./loading-spinner";
 
 const operatorMenu = [
-    { icon: <LayoutDashboard />, label: "Dashboard", path: "/operator/dashboard" },
+    { icon: <LayoutDashboard />, label: "Beranda", path: "/operator/dashboard" },
     { icon: <Package />, label: "Inventaris Barang", path: "/operator/inventaris" },
+    { icon: <Box />, label: "Jenis Barang", path: "/operator/jenis-barang" },
+    { icon: <HomeIcon />, label: "Ruang Barang", path: "/operator/ruang-barang" },
     { icon: <BookOpen />, label: "Peminjaman", path: "/operator/peminjaman" },
     { icon: <RotateCcw />, label: "Pengembalian", path: "/operator/pengembalian" },
 ];
@@ -23,10 +28,14 @@ const operatorMenu = [
 export default function OperatorSidebar({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
-    const { logout, loading } = useAuth();
+    const { logout, user, loading } = useAuth();
 
-    if (loading) {
+    if (loading && !user) {
         return <FullPageLoader />;
+    }
+
+    if (!user) {
+        return null;
     }
 
     return (

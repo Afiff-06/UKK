@@ -7,9 +7,6 @@ import {
     Package,
     ClipboardList,
     AlertCircle,
-    TrendingUp,
-    Clock,
-    CheckCircle,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
@@ -42,12 +39,7 @@ export default function AdminDashboard() {
             try {
                 // Fetch users count
                 const { count: usersCount } = await supabase
-                    .from('users')
-                    .select('*', { count: 'exact', head: true });
-
-                // Fetch petugas count
-                const { count: petugasCount } = await supabase
-                    .from('petugas')
+                    .from('tb_user')
                     .select('*', { count: 'exact', head: true });
 
                 // Fetch inventaris count
@@ -68,7 +60,7 @@ export default function AdminDashboard() {
                     `)
                     .order('created_at', { ascending: false });
 
-                const dipinjam = peminjaman?.filter(p => p.status === 'disetujui' || p.status === 'pending') || [];
+                const dipinjam = peminjaman?.filter(p => p.status === 'dipinjam' || p.status === 'pending') || [];
                 const terlambat = dipinjam.filter(p => {
                     const borrowed = new Date(p.tanggal_pinjam);
                     const today = new Date();
@@ -76,7 +68,7 @@ export default function AdminDashboard() {
                 });
 
                 setStats({
-                    totalPengguna: (usersCount || 0) + (petugasCount || 0),
+                    totalPengguna: (usersCount || 0),
                     totalBarang: inventarisCount || 0,
                     totalDipinjam: dipinjam.length,
                     totalTerlambat: terlambat.length,
@@ -94,7 +86,7 @@ export default function AdminDashboard() {
 
     const getStatusBadge = (status: string) => {
         switch (status) {
-            case 'disetujui':
+            case 'dipinjam':
                 return <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">Dipinjam</span>;
             case 'pending':
                 return <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs">Pending</span>;

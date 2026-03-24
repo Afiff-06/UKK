@@ -53,7 +53,7 @@ export default function OperatorDashboard() {
                     `)
                     .order('created_at', { ascending: false });
 
-                const dipinjam = peminjaman?.filter(p => p.status === 'disetujui' || p.status === 'pending') || [];
+                const dipinjam = peminjaman?.filter(p => p.status === 'dipinjam' || p.status === 'pending') || [];
                 const terlambat = dipinjam.filter(p => {
                     const borrowed = new Date(p.tanggal_pinjam);
                     const today = new Date();
@@ -78,7 +78,7 @@ export default function OperatorDashboard() {
 
     const getStatusBadge = (status: string) => {
         switch (status) {
-            case 'disetujui':
+            case 'dipinjam':
                 return <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">Dipinjam</span>;
             case 'pending':
                 return <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs">Pending</span>;

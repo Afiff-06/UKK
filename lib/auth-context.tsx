@@ -1,8 +1,7 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useMemo, ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 
 export type UserRole = 'admin' | 'operator' | 'pegawai' | null;
@@ -13,178 +12,123 @@ interface UserProfile {
     username: string;
     role: UserRole;
     email?: string;
+    blocked_until: string | null;
 }
 
 interface AuthContextType {
-    user: User | null;
+    user: UserProfile | null;
     profile: UserProfile | null;
     role: UserRole;
     loading: boolean;
     logout: () => Promise<void>;
-    refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-    const [user, setUser] = useState<User | null>(null);
-    const [profile, setProfile] = useState<UserProfile | null>(null);
+    const supabase = useMemo(() => createClient(), []);
+    const router = useRouter();
+
+    const [user, setUser] = useState<UserProfile | null>(null);
     const [role, setRole] = useState<UserRole>(null);
     const [loading, setLoading] = useState(true);
-    const router = useRouter();
-    const supabase = createClient();
-
-    const fetchUserProfile = async (userId: string) => {
-        try {
-            // First, try to fetch from petugas table (for admin/operator)
-            const { data: petugasData, error: petugasError } = await supabase
-                .from('petugas')
-                .select(`
-          id_petugas,
-          username,
-          nama_petugas,
-          level_id,
-          level:level_id (nama_level)
-        `)
-                .eq('id_petugas', userId)
-                .single();
-
-            if (petugasData && !petugasError) {
-                const levelName = (petugasData.level as any)?.nama_level || 'admin';
-                setProfile({
-                    id: petugasData.id_petugas,
-                    nama: petugasData.nama_petugas,
-                    username: petugasData.username,
-                    role: levelName as UserRole,
-                });
-                setRole(levelName as UserRole);
-                return;
-            }
-
-            // If not found in petugas, try users table (for pegawai)
-            const { data: userData, error: userError } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', userId)
-                .single();
-
-            if (userData && !userError) {
-                setProfile({
-                    id: userData.id,
-                    nama: userData.nama,
-                    username: userData.username,
-                    email: userData.email,
-                    role: userData.role as UserRole,
-                });
-                setRole(userData.role as UserRole);
-                return;
-            }
-
-            // Default to pegawai if no profile found
-            setRole('pegawai');
-        } catch (error) {
-            console.error('Error fetching user profile:', error);
-        }
-    };
-
-    const checkPetugasSession = async () => {
-        // Check for petugas session in localStorage
-        const petugasSession = localStorage.getItem('petugas_session');
-        if (petugasSession) {
-            try {
-                const petugas = JSON.parse(petugasSession);
-
-                // Fetch level info
-                const { data: levelData } = await supabase
-                    .from('level')
-                    .select('nama_level')
-                    .eq('id_level', petugas.level_id)
-                    .single();
-
-                const roleName = levelData?.nama_level || 'admin';
-
-                setProfile({
-                    id: petugas.id,
-                    nama: petugas.nama,
-                    username: petugas.username,
-                    role: roleName as UserRole,
-                });
-                setRole(roleName as UserRole);
-                return true;
-            } catch (e) {
-                localStorage.removeItem('petugas_session');
-            }
-        }
-        return false;
-    };
-
-    const refreshProfile = async () => {
-        if (user) {
-            await fetchUserProfile(user.id);
-        } else {
-            await checkPetugasSession();
-        }
-    };
 
     useEffect(() => {
-        const initAuth = async () => {
+        let mounted = true;
+
+        const fetchProfile = async (sessionUser: any) => {
+            if (!mounted) return;
             try {
-                // First check for petugas session
-                const hasPetugasSession = await checkPetugasSession();
-                if (hasPetugasSession) {
-                    setLoading(false);
-                    return;
+                // Hanya tampilkan loading jika belum ada data user (initial load atau post-logout)
+                if (!user) {
+                    setLoading(true);
                 }
 
-                // Then check Supabase auth
-                const { data: { session } } = await supabase.auth.getSession();
+                const { data, error } = await supabase
+                    .from('tb_user')
+                    .select('id, nama, username, role, email, blocked_until')
+                    .eq('id', sessionUser.id)
+                    .single();
 
-                if (session?.user) {
-                    setUser(session.user);
-                    await fetchUserProfile(session.user.id);
+                if (mounted) {
+                    if (data) {
+                        // Check if account is blocked
+                        if (data.blocked_until && new Date(data.blocked_until) > new Date()) {
+                            await supabase.auth.signOut();
+                            setUser(null);
+                            setRole(null);
+                            router.push('/auth/login?error=blocked');
+                            return;
+                        }
+
+                        const newUser = { 
+                            id: data.id, 
+                            nama: data.nama, 
+                            username: data.username, 
+                            role: data.role, 
+                            email: data.email,
+                            blocked_until: data.blocked_until
+                        };
+                        setUser(newUser);
+                        setRole(data.role);
+                    } else {
+                        setUser(null);
+                        setRole(null);
+                    }
                 }
-            } catch (error) {
-                console.error('Error initializing auth:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        initAuth();
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            async (event, session) => {
-                if (event === 'SIGNED_IN' && session?.user) {
-                    setUser(session.user);
-                    await fetchUserProfile(session.user.id);
-                } else if (event === 'SIGNED_OUT') {
+            } catch (e) {
+                console.error('Error fetching profile:', e);
+                if (mounted) {
                     setUser(null);
-                    setProfile(null);
                     setRole(null);
                 }
+            } finally {
+                if (mounted) setLoading(false);
             }
-        );
+        };
+
+        // Step 1: Initial check
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (!mounted) return;
+            if (session?.user) {
+                fetchProfile(session.user);
+            } else {
+                setLoading(false);
+            }
+        });
+
+        // Step 2: Listen for changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            if (!mounted) return;
+
+            if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
+                if (session?.user) {
+                    fetchProfile(session.user);
+                }
+            } else if (event === 'SIGNED_OUT') {
+                setUser(null);
+                setRole(null);
+                setLoading(false);
+                router.push('/auth/login');
+            }
+        });
 
         return () => {
+            mounted = false;
             subscription.unsubscribe();
         };
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [supabase, router]);
 
     const logout = async () => {
-        // Clear petugas session
-        localStorage.removeItem('petugas_session');
-
-        // Clear Supabase auth
         await supabase.auth.signOut();
-
-        setUser(null);
-        setProfile(null);
-        setRole(null);
         router.push('/auth/login');
+        setUser(null);
+        setRole(null);
     };
 
     return (
-        <AuthContext.Provider value={{ user, profile, role, loading, logout, refreshProfile }}>
+        <AuthContext.Provider value={{ user, profile: user, role, loading, logout }}>
             {children}
         </AuthContext.Provider>
     );
