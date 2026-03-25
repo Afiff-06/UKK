@@ -7,6 +7,7 @@ import {
     AlertTriangle,
     CheckCircle2,
     Search,
+    Plus,
 } from "lucide-react";
 
 import Header from "@/components/header";
@@ -256,7 +257,13 @@ export default function PeminjamanPage() {
                     </div>
 
                     <div className="flex justify-end">
-                        <Button className="ml-auto" onClick={() => router.push("/admin/peminjaman/form")}>Tambah Peminjaman</Button>
+                    <button
+                        onClick={() => router.push("/admin/peminjaman/form")}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl flex items-center gap-2 shadow transition-colors"
+                    >
+                        <Plus size={18} className="text-white" />
+                        Tekan Untuk Meminjam
+                    </button>
                     </div>
 
                     <div className="bg-white rounded-3xl shadow-lg overflow-hidden mt-8 max-w-full">

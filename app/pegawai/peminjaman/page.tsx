@@ -221,6 +221,7 @@ export default function Peminjaman() {
                             color="red"
                         />
                     </div>
+                    
 
                     <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
                         <div className="p-6 border-b border-gray-50 flex items-center justify-between bg-white/50 backdrop-blur-sm sticky top-0 z-10">

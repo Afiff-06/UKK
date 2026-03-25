@@ -425,12 +425,12 @@ export default function ManajemenPengguna() {
 
                             <div>
                                 <label className="block text-sm text-gray-500 mb-1">
-                                    Password {editUser ? '(kosongkan jika tidak diubah)' : ''}
+                                    Kata Sandi {editUser ? '(kosongkan jika tidak diubah)' : ''}
                                 </label>
                                 <input
                                     type="password"
                                     className="w-full border rounded-xl px-4 py-3"
-                                    placeholder={editUser ? "Kosongkan jika tidak diubah" : "Password"}
+                                    placeholder={editUser ? "Kosongkan jika tidak diubah" : "Kata Sandi"}
                                     value={formData.password}
                                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                                 />
