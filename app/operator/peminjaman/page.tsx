@@ -16,6 +16,7 @@ import { useAuth } from "@/lib/auth-context";
 import LoadingSpinner from "@/components/loading-spinner";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
+import { getReturnStatus, isPastDueDate } from "@/lib/peminjaman-status";
 
 // Form-related interfaces removed
 
@@ -55,17 +56,13 @@ export default function Peminjaman() {
     const { role, profile } = useAuth();
     const supabase = createClient();
 
-    const isOverdue = (tanggalPinjam: string, status: string) => {
+    const isOverdue = (tanggalPinjam: string, tanggalKembali: string | null, status: string) => {
         if (status !== "dipinjam") return false;
-
-        const borrowed = new Date(tanggalPinjam);
-        const today = new Date();
-        const diffDays = Math.floor((today.getTime() - borrowed.getTime()) / (1000 * 60 * 60 * 24));
-        return diffDays > 7;
+        return isPastDueDate(tanggalPinjam, tanggalKembali);
     };
 
-    const getStatusBadge = (status: string, tanggalPinjam: string) => {
-        if (isOverdue(tanggalPinjam, status)) {
+    const getStatusBadge = (status: string, tanggalPinjam: string, tanggalKembali: string | null) => {
+        if (status === "terlambat" || isOverdue(tanggalPinjam, tanggalKembali, status)) {
             return (
                 <span className="flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm">
                     <AlertTriangle size={14} /> Terlambat
@@ -117,7 +114,7 @@ export default function Peminjaman() {
                         inventaris:id_inventaris (id_inventaris, nama, kode_inventaris)
                     )
                 `)
-                .in('status', ['pending', 'konfirmasi_peminjaman', 'dipinjam'])
+                .in('status', ['pending', 'konfirmasi_peminjaman', 'konfirmasi_pengembalian', 'dipinjam'])
                 .order("tanggal_pinjam", { ascending: false });
 
             if (error) throw error;
@@ -148,6 +145,7 @@ export default function Peminjaman() {
         try {
             const pinjaman = riwayatPeminjaman.find(p => p.id_peminjaman === id);
             if (!pinjaman) return;
+            const returnStatus = getReturnStatus(pinjaman.tanggal_pinjam, pinjaman.tanggal_kembali);
 
             // 1. Update each item's stock
             for (const detail of pinjaman.detail_peminjaman) {
@@ -169,7 +167,7 @@ export default function Peminjaman() {
             const { error } = await supabase
                 .from('peminjaman')
                 .update({
-                    status: 'dikembalikan',
+                    status: returnStatus,
                     tanggal_kembali: new Date().toISOString().split('T')[0]
                 })
                 .eq('id_peminjaman', id);
@@ -249,7 +247,9 @@ export default function Peminjaman() {
 
     const jumlahAktif = riwayatPeminjaman.filter((item) => item.status === "dipinjam").length;
     const jumlahMenunggu = riwayatPeminjaman.filter((item) => ["pending", "konfirmasi_peminjaman"].includes(item.status)).length;
-    const jumlahTerlambat = riwayatPeminjaman.filter((item) => isOverdue(item.tanggal_pinjam, item.status)).length;
+    const jumlahTerlambat = riwayatPeminjaman.filter((item) =>
+        isOverdue(item.tanggal_pinjam, item.tanggal_kembali, item.status)
+    ).length;
 
     if (loading) {
         return (
@@ -401,7 +401,7 @@ export default function Peminjaman() {
                                                         })}
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        {getStatusBadge(item.status, item.tanggal_pinjam)}
+                                                        {getStatusBadge(item.status, item.tanggal_pinjam, item.tanggal_kembali)}
                                                     </td>
                                                     <td className="px-6 py-4 text-center">
                                                         {item.status === 'konfirmasi_pengembalian' && (
@@ -424,7 +424,7 @@ export default function Peminjaman() {
                                                                 Setujui Pinjam
                                                             </button>
                                                         )}
-                                                        {['dipinjam', 'dikembalikan', 'ditolak'].includes(item.status) && (
+                                                        {['dipinjam', 'dikembalikan', 'terlambat', 'ditolak'].includes(item.status) && (
                                                             <span className="text-gray-400 text-xs">-</span>
                                                         )}
                                                     </td>

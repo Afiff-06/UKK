@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import LoadingSpinner from "@/components/loading-spinner";
 import { useRouter } from "next/navigation";
+import { isPastDueDate } from "@/lib/peminjaman-status";
 
 interface DashboardStats {
     totalDipinjam: number;
@@ -48,11 +49,9 @@ export default function PegawaiDashboard() {
                     .order('created_at', { ascending: false });
 
                 const dipinjam = peminjaman?.filter(p => p.status === 'dipinjam' || p.status === 'pending') || [];
-                const terlambat = dipinjam.filter(p => {
-                    const borrowed = new Date(p.tanggal_pinjam);
-                    const today = new Date();
-                    return (today.getTime() - borrowed.getTime()) / (1000 * 60 * 60 * 24) > 7;
-                });
+                const terlambat = dipinjam.filter((p) =>
+                    isPastDueDate(p.tanggal_pinjam, p.tanggal_kembali)
+                );
 
                 setStats({
                     totalDipinjam: dipinjam.length,
@@ -82,6 +81,8 @@ export default function PegawaiDashboard() {
                 return <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs">Pending</span>;
             case 'dikembalikan':
                 return <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs">Dikembalikan</span>;
+            case 'terlambat':
+                return <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs">Terlambat</span>;
             case 'ditolak':
                 return <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs">Ditolak</span>;
             default:
@@ -126,7 +127,7 @@ export default function PegawaiDashboard() {
                                 <StatCard
                                     icon={<CheckCircle />}
                                     title="Telah Dikembalikan"
-                                    value={stats.recentPeminjaman.filter(p => p.status === 'dikembalikan').length.toString()}
+                                    value={stats.recentPeminjaman.filter((p) => ['dikembalikan', 'terlambat'].includes(p.status)).length.toString()}
                                     color="green"
                                 />
                                 <StatCard

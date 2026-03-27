@@ -14,6 +14,7 @@ import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import LoadingSpinner from "@/components/loading-spinner";
+import { getReturnStatus, isPastDueDate } from "@/lib/peminjaman-status";
 
 interface Peminjaman {
     id_peminjaman: string;
@@ -54,7 +55,7 @@ export default function PengembalianPage() {
                         inventaris:id_inventaris (id_inventaris, nama, kode_inventaris, jumlah)
                     )
                 `)
-                .in('status', ['konfirmasi_pengembalian', 'dikembalikan'])
+                .in('status', ['konfirmasi_pengembalian', 'dikembalikan', 'terlambat'])
                 .order('tanggal_pinjam', { ascending: false });
 
             const { data, error } = await query;
@@ -80,6 +81,9 @@ export default function PengembalianPage() {
         setProcessingId(id);
         try {
             const pinjaman = peminjaman.find(p => p.id_peminjaman === id);
+            const returnStatus = pinjaman
+                ? getReturnStatus(pinjaman.tanggal_pinjam, pinjaman.tanggal_kembali)
+                : 'dikembalikan';
 
             if (pinjaman) {
                 // Kembalikan jumlah stok untuk setiap barang yang dipinjam
@@ -110,11 +114,11 @@ export default function PengembalianPage() {
                 }
             }
 
-            // Update status peminjaman menjadi dikembalikan
+            // Update status peminjaman menjadi dikembalikan atau terlambat
             const { error } = await supabase
                 .from('peminjaman')
                 .update({
-                    status: 'dikembalikan'
+                    status: returnStatus
                 })
                 .eq('id_peminjaman', id);
 
@@ -167,6 +171,12 @@ export default function PengembalianPage() {
                         <CheckCircle size={14} /> Dikembalikan
                     </span>
                 );
+            case 'terlambat':
+                return (
+                    <span className="flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm">
+                        <AlertTriangle size={14} /> Terlambat
+                    </span>
+                );
             default:
                 return (
                     <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
@@ -176,12 +186,8 @@ export default function PengembalianPage() {
         }
     };
 
-    const isOverdue = (tanggalPinjam: string) => {
-        const borrowed = new Date(tanggalPinjam);
-        const today = new Date();
-        const diffDays = Math.floor((today.getTime() - borrowed.getTime()) / (1000 * 60 * 60 * 24));
-        return diffDays > 7; // Overdue if more than 7 days
-    };
+    const isOverdue = (tanggalPinjam: string, tanggalKembali: string | null) =>
+        isPastDueDate(tanggalPinjam, tanggalKembali);
 
     return (
 
@@ -213,7 +219,7 @@ export default function PengembalianPage() {
                             <div>
                                 <p className="text-sm font-medium text-gray-400 mb-0.5">Selesai</p>
                                 <p className="text-2xl font-bold text-gray-800">
-                                    {peminjaman.filter(p => p.status === 'dikembalikan').length}
+                                    {peminjaman.filter(p => ['dikembalikan', 'terlambat'].includes(p.status)).length}
                                 </p>
                             </div>
                         </div>
@@ -229,6 +235,7 @@ export default function PengembalianPage() {
                             <option value="all">Semua Status</option>
                             <option value="konfirmasi_pengembalian">Menunggu Konfirmasi</option>
                             <option value="dikembalikan">Selesai</option>
+                            <option value="terlambat">Terlambat</option>
                         </select>
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -311,7 +318,7 @@ export default function PengembalianPage() {
                                                                 year: 'numeric'
                                                             })}
                                                         </p>
-                                                        {isOverdue(item.tanggal_pinjam) && (
+                                                        {isOverdue(item.tanggal_pinjam, item.tanggal_kembali) && (
                                                             <p className="text-[10px] text-red-500 flex items-center gap-1 mt-1 font-bold">
                                                                 <AlertTriangle size={10} /> Terlambat
                                                             </p>

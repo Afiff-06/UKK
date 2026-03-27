@@ -15,6 +15,7 @@ import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import LoadingSpinner from "@/components/loading-spinner";
+import { isPastDueDate } from "@/lib/peminjaman-status";
 
 interface Peminjaman {
   id_peminjaman: string;
@@ -59,7 +60,7 @@ export default function PengembalianPage() {
                     )
                 `,
         )
-        .in("status", ["konfirmasi_pengembalian", "dikembalikan"])
+        .in("status", ["konfirmasi_pengembalian", "dikembalikan", "terlambat"])
         .order("tanggal_pinjam", { ascending: false });
 
       // If pegawai, only show their own borrowings
@@ -131,6 +132,12 @@ export default function PengembalianPage() {
             <CheckCircle size={14} /> Dikembalikan
           </span>
         );
+      case "terlambat":
+        return (
+          <span className="flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm">
+            <AlertTriangle size={14} /> Terlambat
+          </span>
+        );
       default:
         return (
           <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
@@ -140,14 +147,8 @@ export default function PengembalianPage() {
     }
   };
 
-  const isOverdue = (tanggalPinjam: string) => {
-    const borrowed = new Date(tanggalPinjam);
-    const today = new Date();
-    const diffDays = Math.floor(
-      (today.getTime() - borrowed.getTime()) / (1000 * 60 * 60 * 24),
-    );
-    return diffDays > 7; // Overdue if more than 7 days
-  };
+  const isOverdue = (tanggalPinjam: string, tanggalKembali: string | null) =>
+    isPastDueDate(tanggalPinjam, tanggalKembali);
 
   return (
     <div className="min-h-screen bg-[#f5f7fb] w-full">
@@ -198,7 +199,9 @@ export default function PengembalianPage() {
                   <p className="text-sm text-gray-500">Selesai</p>
                   <p className="text-2xl font-bold text-gray-800">
                     {
-                      peminjaman.filter((p) => p.status === "dikembalikan")
+                      peminjaman.filter((p) =>
+                        ["dikembalikan", "terlambat"].includes(p.status),
+                      )
                         .length
                     }
                   </p>
@@ -230,6 +233,7 @@ export default function PengembalianPage() {
                 Menunggu Konfirmasi
               </option>
               <option value="dikembalikan">Selesai</option>
+              <option value="terlambat">Terlambat</option>
             </select>
             <div className="relative">
               <Search
@@ -305,7 +309,10 @@ export default function PengembalianPage() {
                               },
                             )}
                           </p>
-                          {isOverdue(item.tanggal_pinjam) &&
+                          {isOverdue(
+                            item.tanggal_pinjam,
+                            item.tanggal_kembali,
+                          ) &&
                             item.status === "dipinjam" && (
                               <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
                                 <AlertTriangle size={12} /> Terlambat

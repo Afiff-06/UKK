@@ -163,6 +163,7 @@ export default function LaporanPage() {
             'dipinjam': { cls: 'bg-blue-100 text-blue-700', label: 'Dipinjam' },
             'konfirmasi_pengembalian': { cls: 'bg-indigo-100 text-indigo-700', label: 'Konfirmasi Pengembalian' },
             'pending': { cls: 'bg-yellow-100 text-yellow-700', label: 'Pending' },
+            'terlambat': { cls: 'bg-red-100 text-red-700', label: 'Terlambat' },
             'ditolak': { cls: 'bg-red-100 text-red-700', label: 'Ditolak' },
         };
         const s = map[status] || { cls: 'bg-gray-100 text-gray-700', label: status };
