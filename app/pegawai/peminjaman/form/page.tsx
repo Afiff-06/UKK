@@ -38,6 +38,14 @@ interface SelectedItem {
     maxQty: number;
 }
 
+const formatDateInput = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+};
+
 export default function PeminjamanForm() {
     const [items, setItems] = useState<SelectedItem[]>([]);
     const [inventaris, setInventaris] = useState<Inventaris[]>([]);
@@ -55,6 +63,7 @@ export default function PeminjamanForm() {
     const router = useRouter();
     const { role, profile } = useAuth();
     const supabase = createClient();
+    const todayDate = formatDateInput(new Date());
 
     // Initialize date on client side
     useEffect(() => {
@@ -426,6 +435,7 @@ export default function PeminjamanForm() {
                                         type="date"
                                         value={tanggalPinjam}
                                         onChange={(e) => setTanggalPinjam(e.target.value)}
+                                        min={todayDate}
                                         className="w-full border rounded-xl px-4 py-3 bg-white"
                                     />
                                 </div>
@@ -436,6 +446,7 @@ export default function PeminjamanForm() {
                                         type="date"
                                         value={tanggalKembali}
                                         onChange={(e) => setTanggalKembali(e.target.value)}
+                                        min={tanggalPinjam || todayDate}
                                         className="w-full border rounded-xl px-4 py-3 bg-white"
                                     />
                                 </div>

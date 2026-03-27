@@ -395,6 +395,7 @@ export default function PeminjamanForm() {
                                         type="date"
                                         value={tanggalKembali}
                                         onChange={(e) => setTanggalKembali(e.target.value)}
+                                        min={tanggalPinjam || todayDate}
                                         className="w-full border rounded-xl px-4 py-3"
                                     />
                                 </div>

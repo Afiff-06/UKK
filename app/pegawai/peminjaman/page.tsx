@@ -12,6 +12,7 @@ import {
 import { useRouter } from "next/navigation";
 
 import Header from "@/components/header";
+import { getReturnStatus, isPastDueDate } from "@/lib/peminjaman-status";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import LoadingSpinner from "@/components/loading-spinner";
@@ -56,19 +57,13 @@ export default function Peminjaman() {
   const supabase = createClient();
   const router = useRouter();
 
-  const isOverdue = (tanggalPinjam: string, status: string) => {
+  const isOverdue = (tanggalPinjam: string, tanggalKembali: string | null, status: string) => {
     if (status !== "dipinjam") return false;
-
-    const borrowed = new Date(tanggalPinjam);
-    const today = new Date();
-    const diffDays = Math.floor(
-      (today.getTime() - borrowed.getTime()) / (1000 * 60 * 60 * 24),
-    );
-    return diffDays > 7;
+    return isPastDueDate(tanggalPinjam, tanggalKembali);
   };
 
-  const getStatusBadge = (status: string, tanggalPinjam: string) => {
-    if (isOverdue(tanggalPinjam, status)) {
+  const getStatusBadge = (status: string, tanggalPinjam: string, tanggalKembali: string | null) => {
+    if (status === "terlambat" || isOverdue(tanggalPinjam, tanggalKembali, status)) {
       return (
         <span className="flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm">
           <AlertTriangle size={14} /> Terlambat
@@ -198,7 +193,7 @@ export default function Peminjaman() {
     ["pending", "konfirmasi_peminjaman"].includes(item.status),
   ).length;
   const jumlahTerlambat = riwayatPeminjaman.filter((item) =>
-    isOverdue(item.tanggal_pinjam, item.status),
+    item.status === "terlambat" || isOverdue(item.tanggal_pinjam, item.tanggal_kembali, item.status),
   ).length;
 
   if (loading) {
@@ -350,7 +345,7 @@ export default function Peminjaman() {
                           </p>
                         </td>
                         <td className="px-8 py-5">
-                          {getStatusBadge(item.status, item.tanggal_pinjam)}
+                          {getStatusBadge(item.status, item.tanggal_pinjam, item.tanggal_kembali)}
                         </td>
                       </tr>
                     ))}

@@ -248,7 +248,7 @@ export default function Peminjaman() {
     const jumlahAktif = riwayatPeminjaman.filter((item) => item.status === "dipinjam").length;
     const jumlahMenunggu = riwayatPeminjaman.filter((item) => ["pending", "konfirmasi_peminjaman"].includes(item.status)).length;
     const jumlahTerlambat = riwayatPeminjaman.filter((item) =>
-        isOverdue(item.tanggal_pinjam, item.tanggal_kembali, item.status)
+        item.status === "terlambat" || isOverdue(item.tanggal_pinjam, item.tanggal_kembali, item.status)
     ).length;
 
     if (loading) {
