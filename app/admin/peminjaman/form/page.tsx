@@ -38,6 +38,14 @@ interface SelectedItem {
     maxQty: number;
 }
 
+const formatDateInput = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+};
+
 export default function PeminjamanForm() {
     const [items, setItems] = useState<SelectedItem[]>([]);
     const [inventaris, setInventaris] = useState<Inventaris[]>([]);
@@ -55,16 +63,17 @@ export default function PeminjamanForm() {
     const { role, profile } = useAuth();
     const supabase = createClient();
     const router = useRouter();
+    const todayDate = formatDateInput(new Date());
 
     // Initialize date on client side to avoid Next.js 16 prerender issues
     useEffect(() => {
         if (!tanggalPinjam) {
             const today = new Date();
-            setTanggalPinjam(today.toISOString().split('T')[0]);
+            setTanggalPinjam(formatDateInput(today));
 
             const nextWeek = new Date();
             nextWeek.setDate(today.getDate() + 7);
-            setTanggalKembali(nextWeek.toISOString().split('T')[0]);
+            setTanggalKembali(formatDateInput(nextWeek));
         }
     }, [tanggalPinjam]);
 
@@ -375,6 +384,7 @@ export default function PeminjamanForm() {
                                         type="date"
                                         value={tanggalPinjam}
                                         onChange={(e) => setTanggalPinjam(e.target.value)}
+                                        min={todayDate}
                                         className="w-full border rounded-xl px-4 py-3"
                                     />
                                 </div>
