@@ -93,7 +93,7 @@ export default function PegawaiDashboard() {
     return (
         <div className="min-h-screen bg-[#f5f7fb] w-full">
             <main className="flex-1 flex flex-col">
-                <Header title="Dashboard Pegawai" />
+                <Header title="Beranda Pegawai" />
 
                 <div className="p-8">
                     {/* WELCOME */}

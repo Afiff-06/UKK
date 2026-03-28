@@ -9,6 +9,8 @@ import {
     Trash2,
     Users,
     Ban,
+    Eye,
+    EyeOff,
 } from "lucide-react";
 import { manageUserAction } from "./user-actions";
 
@@ -36,6 +38,7 @@ export default function ManajemenPengguna() {
     const [showBanModal, setShowBanModal] = useState(false);
     const [userToBan, setUserToBan] = useState<UserData | null>(null);
     const [banUntil, setBanUntil] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
 
     const [formData, setFormData] = useState({
         nama: "",
@@ -72,6 +75,11 @@ export default function ManajemenPengguna() {
 
     const handleSubmit = async () => {
         try {
+            if (formData.nip && formData.nip.length !== 18) {
+                alert('NIP harus tepat 18 digit.');
+                return;
+            }
+
             if (editUser) {
                 // Update existing user via Server Action
                 const result = await manageUserAction({
@@ -181,6 +189,7 @@ export default function ManajemenPengguna() {
 
     const handleEdit = (user: UserData) => {
         setEditUser(user);
+        setShowPassword(false);
         setFormData({
             nama: user.nama,
             username: user.username,
@@ -206,6 +215,7 @@ export default function ManajemenPengguna() {
     const openAddModal = () => {
         setEditUser(null);
         resetForm();
+        setShowPassword(false);
         setShowModal(true);
     };
 
@@ -428,13 +438,22 @@ export default function ManajemenPengguna() {
                                 <label className="block text-sm text-gray-500 mb-1">
                                     Kata Sandi {editUser ? '(kosongkan jika tidak diubah)' : ''}
                                 </label>
-                                <input
-                                    type="password"
-                                    className="w-full border rounded-xl px-4 py-3"
-                                    placeholder={editUser ? "Kosongkan jika tidak diubah" : "Kata Sandi"}
-                                    value={formData.password}
-                                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                />
+                                <div className="relative">
+                                    <input
+                                        type={showPassword ? "text" : "password"}
+                                        className="w-full border rounded-xl px-4 py-3 pr-12"
+                                        placeholder={editUser ? "Kosongkan jika tidak diubah" : "Kata Sandi"}
+                                        value={formData.password}
+                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                                    >
+                                        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                                    </button>
+                                </div>
                             </div>
 
                             <div>
@@ -442,9 +461,16 @@ export default function ManajemenPengguna() {
                                 <input
                                     className="w-full border rounded-xl px-4 py-3"
                                     placeholder="NIP (opsional)"
+                                    maxLength={18}
                                     value={formData.nip}
-                                    onChange={(e) => setFormData({ ...formData, nip: e.target.value })}
+                                    onChange={(e) => {
+                                        const val = e.target.value.replace(/\D/g, '');
+                                        setFormData({ ...formData, nip: val });
+                                    }}
                                 />
+                                {formData.nip && formData.nip.length > 0 && formData.nip.length < 18 && (
+                                    <p className="text-red-500 text-xs mt-1">NIP harus berisi persis 18 digit angka.</p>
+                                )}
                             </div>
                         </div>
 
