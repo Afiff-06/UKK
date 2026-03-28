@@ -156,7 +156,7 @@ export function FetchDataSteps() {
       </TutorialStep>
 
       <TutorialStep title="Build in a weekend and scale to millions!">
-        <p>You&apos;re ready to launch your product to the world! 🚀</p>
+        <p>You&apos;re ready to launch your product to the world!</p>
       </TutorialStep>
     </ol>
   );

@@ -8,6 +8,7 @@ import {
     Pencil,
     Trash2,
     Users,
+    Ban,
 } from "lucide-react";
 import { manageUserAction } from "./user-actions";
 
@@ -477,7 +478,7 @@ export default function ManajemenPengguna() {
                         <div className="absolute top-0 left-0 w-full h-2 bg-red-500"></div>
 
                         <h2 className="text-2xl font-bold mb-2 text-gray-800 flex items-center gap-2">
-                            <span className="text-red-500">🚫</span> Blokir Akun
+                            <Ban size={22} className="text-red-500" /> Blokir Akun
                         </h2>
                         <p className="text-gray-500 mb-6 text-sm">
                             Tentukan sampai kapan akun <strong>{userToBan.nama}</strong> akan ditangguhkan.

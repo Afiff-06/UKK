@@ -10,6 +10,8 @@ import {
     Check,
     X,
     Package,
+    User,
+    Calendar,
 } from "lucide-react";
 
 import Header from "@/components/header";
@@ -238,7 +240,7 @@ export default function PeminjamanForm() {
                     <div className="bg-white rounded-3xl shadow-lg p-8 space-y-8 max-w-4xl">
                         {/* PILIH PEGAWAI */}
                         {role !== 'pegawai' && (
-                            <Section title="Pilih Pegawai" icon="👤">
+                            <Section title="Pilih Pegawai" icon={<User size={16} />}>
                                 <div
                                     onClick={() => setShowPegawaiSelector(!showPegawaiSelector)}
                                     className="border rounded-xl px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
@@ -299,7 +301,7 @@ export default function PeminjamanForm() {
                             </Section>
                         )}
 
-                        <Section title="Pilih Barang & Jumlah" icon="📦">
+                        <Section title="Pilih Barang & Jumlah" icon={<Package size={16} />}>
                             <div className="border rounded-2xl overflow-hidden">
                                 <div className="grid grid-cols-12 bg-gray-50 px-6 py-3 text-sm text-gray-500">
                                     <div className="col-span-7">Barang</div>
@@ -378,7 +380,7 @@ export default function PeminjamanForm() {
                         </Section>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <Section title="Tanggal Pinjam" icon="📅">
+                            <Section title="Tanggal Pinjam" icon={<Calendar size={16} />}>
                                 <div className="relative">
                                     <input
                                         type="date"
@@ -389,7 +391,7 @@ export default function PeminjamanForm() {
                                     />
                                 </div>
                             </Section>
-                            <Section title="Tanggal Kembali" icon="📅">
+                            <Section title="Tanggal Kembali" icon={<Calendar size={16} />}>
                                 <div className="relative">
                                     <input
                                         type="date"
@@ -420,7 +422,7 @@ function Section({ title, icon, children }: { title: string; icon: ReactNode; ch
     return (
         <div>
             <div className="flex items-center gap-2 mb-3 font-semibold text-gray-700">
-                <span>{icon}</span>
+                <span className="text-blue-500">{icon}</span>
                 <span>{title}</span>
             </div>
             {children}

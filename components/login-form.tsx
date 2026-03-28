@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, Package } from "lucide-react";
 
 export function LoginForm({
   className,
@@ -77,7 +77,7 @@ export function LoginForm({
         {/* Logo & Title */}
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <span className="text-2xl">📦</span>
+            <Package size={28} className="text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-800">Inventaris</h1>
           <p className="text-gray-500 mt-2">Masuk ke akun Anda</p>
