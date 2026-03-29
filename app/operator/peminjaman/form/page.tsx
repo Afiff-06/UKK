@@ -88,13 +88,16 @@ export default function Peminjaman() {
     // Initialize date on client side to avoid Next.js 16 prerender issues
     useEffect(() => {
         const today = new Date();
+        const currentTime = today.getHours().toString().padStart(2, '0') + ':' + 
+                          today.getMinutes().toString().padStart(2, '0');
+        
         setTanggalPinjam(today.toISOString().split('T')[0]);
-        setJamPinjam(today.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }));
+        setJamPinjam(currentTime);
         
         const nextWeek = new Date();
         nextWeek.setDate(today.getDate() + 7);
         setTanggalKembali(nextWeek.toISOString().split('T')[0]);
-        setJamKembali(today.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }));
+        setJamKembali(currentTime);
     }, []);
 
     useEffect(() => {
