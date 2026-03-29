@@ -57,6 +57,8 @@ export default function PeminjamanForm() {
     const [selectedPegawai, setSelectedPegawai] = useState<User | null>(null);
     const [tanggalPinjam, setTanggalPinjam] = useState("");
     const [tanggalKembali, setTanggalKembali] = useState("");
+    const [jamPinjam, setJamPinjam] = useState("08:00");
+    const [jamKembali, setJamKembali] = useState("16:00");
     const [showItemSelector, setShowItemSelector] = useState(false);
     const [showPegawaiSelector, setShowPegawaiSelector] = useState(false);
     const [searchItem, setSearchItem] = useState("");
@@ -71,10 +73,12 @@ export default function PeminjamanForm() {
     useEffect(() => {
         const today = new Date();
         setTanggalPinjam(today.toISOString().split('T')[0]);
+        setJamPinjam(`${String(today.getHours()).padStart(2, "0")}:${String(today.getMinutes()).padStart(2, "0")}`);
         
         const nextWeek = new Date();
         nextWeek.setDate(today.getDate() + 7);
         setTanggalKembali(nextWeek.toISOString().split('T')[0]);
+        setJamKembali("16:00");
     }, []);
 
     useEffect(() => {
@@ -148,6 +152,11 @@ export default function PeminjamanForm() {
             return;
         }
 
+        if (jamPinjam < "07:00" || jamPinjam > "15:00" || jamKembali < "07:00" || jamKembali > "15:00") {
+            alert('Waktu peminjaman dan pengembalian hanya diperbolehkan antara jam 07:00 dan 15:00');
+            return;
+        }
+
         setSubmitting(true);
         try {
             // Create peminjaman
@@ -158,6 +167,8 @@ export default function PeminjamanForm() {
                     id_petugas: profile?.id,
                     tanggal_pinjam: tanggalPinjam,
                     tanggal_kembali: tanggalKembali,
+                    jam_pinjam: jamPinjam,
+                    jam_kembali: jamKembali,
                     status: role === 'pegawai' ? 'konfirmasi_peminjaman' : 'dipinjam',
                 })
                 .select()
@@ -431,26 +442,54 @@ export default function PeminjamanForm() {
 
                         {/* TANGGAL */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <Section title="Tanggal Pinjam" icon={<Calendar size={16} />}>
-                                <div className="relative">
-                                    <input
-                                        type="date"
-                                        value={tanggalPinjam}
-                                        onChange={(e) => setTanggalPinjam(e.target.value)}
-                                        min={todayDate}
-                                        className="w-full border rounded-xl px-4 py-3 bg-white"
-                                    />
+                            <Section title="Waktu Peminjaman" icon={<Calendar size={16} />}>
+                                <div className="space-y-3">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-600 mb-1 ml-1">Tanggal Peminjaman</label>
+                                        <input
+                                            type="date"
+                                            value={tanggalPinjam}
+                                            onChange={(e) => setTanggalPinjam(e.target.value)}
+                                            min={todayDate}
+                                            className="w-full border rounded-xl px-4 py-3 bg-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-600 mb-1 ml-1">Jam Peminjaman</label>
+                                        <input
+                                            type="time"
+                                            value={jamPinjam}
+                                            onChange={(e) => setJamPinjam(e.target.value)}
+                                            min="07:00"
+                                            max="15:00"
+                                            className="w-full border rounded-xl px-4 py-3 bg-white"
+                                        />
+                                    </div>
                                 </div>
                             </Section>
-                            <Section title="Tanggal Kembali" icon={<Calendar size={16} />}>
-                                <div className="relative">
-                                    <input
-                                        type="date"
-                                        value={tanggalKembali}
-                                        onChange={(e) => setTanggalKembali(e.target.value)}
-                                        min={tanggalPinjam || todayDate}
-                                        className="w-full border rounded-xl px-4 py-3 bg-white"
-                                    />
+                            <Section title="Waktu Pengembalian" icon={<Calendar size={16} />}>
+                                <div className="space-y-3">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-600 mb-1 ml-1">Tanggal Pengembalian</label>
+                                        <input
+                                            type="date"
+                                            value={tanggalKembali}
+                                            onChange={(e) => setTanggalKembali(e.target.value)}
+                                            min={tanggalPinjam || todayDate}
+                                            className="w-full border rounded-xl px-4 py-3 bg-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-600 mb-1 ml-1">Jam Pengembalian</label>
+                                        <input
+                                            type="time"
+                                            value={jamKembali}
+                                            onChange={(e) => setJamKembali(e.target.value)}
+                                            min="07:00"
+                                            max="15:00"
+                                            className="w-full border rounded-xl px-4 py-3 bg-white"
+                                        />
+                                    </div>
                                 </div>
                             </Section>
                         </div>

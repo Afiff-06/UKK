@@ -22,6 +22,8 @@ interface RiwayatPeminjaman {
     id_peminjaman: string;
     tanggal_pinjam: string;
     tanggal_kembali: string | null;
+    jam_pinjam: string | null;
+    jam_kembali: string | null;
     status: string;
     pegawai?: { nama: string; email: string };
     detail_peminjaman: {
@@ -41,13 +43,13 @@ export default function PeminjamanPage() {
     const { role } = useAuth();
     const supabase = createClient();
 
-    const isOverdue = (tanggalPinjam: string, tanggalKembali: string | null, status: string) => {
+    const isOverdue = (tanggalPinjam: string, tanggalKembali: string | null, status: string, jamKembali?: string | null) => {
         if (status !== "dipinjam") return false;
-        return isPastDueDate(tanggalPinjam, tanggalKembali);
+        return isPastDueDate(tanggalPinjam, tanggalKembali, new Date(), jamKembali);
     };
 
-    const getStatusBadge = (status: string, tanggalPinjam: string, tanggalKembali: string | null) => {
-        if (status === "terlambat" || isOverdue(tanggalPinjam, tanggalKembali, status)) {
+    const getStatusBadge = (status: string, tanggalPinjam: string, tanggalKembali: string | null, jamKembali?: string | null) => {
+        if (status === "terlambat" || isOverdue(tanggalPinjam, tanggalKembali, status, jamKembali)) {
             return (
                 <span className="flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm">
                     <AlertTriangle size={14} /> Terlambat
@@ -92,6 +94,8 @@ export default function PeminjamanPage() {
                     id_peminjaman,
                     tanggal_pinjam,
                     tanggal_kembali,
+                    jam_pinjam,
+                    jam_kembali,
                     status,
                     pegawai:id_pegawai (nama, email),
                     detail_peminjaman (
@@ -109,6 +113,8 @@ export default function PeminjamanPage() {
                 id_peminjaman: item.id_peminjaman,
                 tanggal_pinjam: item.tanggal_pinjam,
                 tanggal_kembali: item.tanggal_kembali,
+                jam_pinjam: item.jam_pinjam,
+                jam_kembali: item.jam_kembali,
                 status: item.status,
                 pegawai: Array.isArray(item.pegawai) ? item.pegawai[0] : item.pegawai,
                 detail_peminjaman: (item.detail_peminjaman || []).map((detail: any) => ({
@@ -184,7 +190,7 @@ export default function PeminjamanPage() {
 
     const jumlahAktif = riwayatPeminjaman.filter((item) => item.status === "dipinjam").length;
     const jumlahMenunggu = riwayatPeminjaman.filter((item) => ["pending", "konfirmasi_peminjaman"].includes(item.status)).length;
-    const jumlahTerlambat = riwayatPeminjaman.filter((item) => item.status === "terlambat" || isOverdue(item.tanggal_pinjam, item.tanggal_kembali, item.status)).length;
+    const jumlahTerlambat = riwayatPeminjaman.filter((item) => item.status === "terlambat" || isOverdue(item.tanggal_pinjam, item.tanggal_kembali, item.status, item.jam_kembali)).length;
 
     if (loading) {
         return (
@@ -327,14 +333,20 @@ export default function PeminjamanPage() {
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 text-gray-700">
-                                                        {new Date(item.tanggal_pinjam).toLocaleDateString("id-ID", {
-                                                            day: "numeric",
-                                                            month: "short",
-                                                            year: "numeric",
-                                                        })}
+                                                        <div className="font-medium">
+                                                            {new Date(item.tanggal_pinjam).toLocaleDateString("id-ID", {
+                                                                day: "numeric",
+                                                                month: "short",
+                                                                year: "numeric",
+                                                            })}
+                                                        </div>
+                                                        <div className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                                                            <Clock size={12} />
+                                                            {item.jam_pinjam?.slice(0, 5) || "--:--"} - {item.jam_kembali?.slice(0, 5) || "--:--"}
+                                                        </div>
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        {getStatusBadge(item.status, item.tanggal_pinjam, item.tanggal_kembali)}
+                                                        {getStatusBadge(item.status, item.tanggal_pinjam, item.tanggal_kembali, item.jam_kembali)}
                                                     </td>
                                                     <td className="px-6 py-4 text-center">
                                                         {["pending", "konfirmasi_peminjaman"].includes(item.status) && (
