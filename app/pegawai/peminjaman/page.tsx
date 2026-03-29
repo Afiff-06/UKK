@@ -21,27 +21,31 @@ import { Button } from "@/components/ui/button";
 interface RiwayatPeminjaman {
   id_peminjaman: string;
   tanggal_pinjam: string;
+  jam_pinjam: string | null;
   tanggal_kembali: string | null;
+  jam_kembali: string | null;
   status: string;
   pegawai?: { nama: string; email: string };
   detail_peminjaman: {
     id: string;
     jumlah: number;
-    inventaris: { nama: string; kode_inventaris: number };
+    inventaris: { id_inventaris: string; nama: string; kode_inventaris: number };
   }[];
 }
 
 interface RiwayatPeminjamanRow {
   id_peminjaman: string;
   tanggal_pinjam: string;
+  jam_pinjam: string | null;
   tanggal_kembali: string | null;
+  jam_kembali: string | null;
   status: string;
   pegawai?: { nama: string; email: string }[] | null;
   detail_peminjaman?:
     | {
         id: string;
         jumlah: number;
-        inventaris?: { nama: string; kode_inventaris: number }[] | null;
+        inventaris?: { nama: string; kode_inventaris: number } | null;
       }[]
     | null;
 }
@@ -109,7 +113,9 @@ export default function Peminjaman() {
             `
                     id_peminjaman,
                     tanggal_pinjam,
+                    jam_pinjam,
                     tanggal_kembali,
+                    jam_kembali,
                     status,
                     pegawai:id_pegawai (nama, email),
                     detail_peminjaman (
@@ -129,35 +135,24 @@ export default function Peminjaman() {
         const { data, error } = await query;
         if (error) throw error;
 
-        const riwayat = ((data || []) as RiwayatPeminjamanRow[]).map(
+        const riwayat: RiwayatPeminjaman[] = ((data || []) as any[]).map(
           (item) => ({
             id_peminjaman: item.id_peminjaman,
             tanggal_pinjam: item.tanggal_pinjam,
+            jam_pinjam: item.jam_pinjam,
             tanggal_kembali: item.tanggal_kembali,
+            jam_kembali: item.jam_kembali,
             status: item.status,
-            pegawai: item.pegawai?.[0]
+            pegawai: item.pegawai
               ? {
-                  nama: item.pegawai[0].nama,
-                  email: item.pegawai[0].email,
+                  nama: item.pegawai.nama,
+                  email: item.pegawai.email,
                 }
               : undefined,
-            detail_peminjaman: (item.detail_peminjaman || []).map((detail) => ({
+            detail_peminjaman: (item.detail_peminjaman || []).map((detail: any) => ({
               id: detail.id,
               jumlah: detail.jumlah,
-              inventaris: {
-                nama:
-                  (detail.inventaris as any)?.nama ||
-                  (Array.isArray(detail.inventaris)
-                    ? detail.inventaris[0]?.nama
-                    : "") ||
-                  "",
-                kode_inventaris:
-                  (detail.inventaris as any)?.kode_inventaris ||
-                  (Array.isArray(detail.inventaris)
-                    ? detail.inventaris[0]?.kode_inventaris
-                    : 0) ||
-                  0,
-              },
+              inventaris: Array.isArray(detail.inventaris) ? detail.inventaris[0] : detail.inventaris
             })),
           }),
         );
@@ -320,29 +315,48 @@ export default function Peminjaman() {
                           </div>
                         </td>
                         <td className="px-8 py-5">
-                          <p className="font-medium text-gray-700">
-                            {new Date(item.tanggal_pinjam).toLocaleDateString(
-                              "id-ID",
-                              {
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric",
-                              },
-                            )}
-                          </p>
-                        </td>
-                        <td className="px-8 py-5">
-                          <p className="text-gray-500">
-                            {item.tanggal_kembali
-                              ? new Date(
-                                  item.tanggal_kembali,
-                                ).toLocaleDateString("id-ID", {
+                          <div className="flex flex-col">
+                            <p className="font-medium text-gray-700">
+                              {new Date(item.tanggal_pinjam).toLocaleDateString(
+                                "id-ID",
+                                {
                                   day: "numeric",
                                   month: "long",
                                   year: "numeric",
-                                })
-                              : "-"}
-                          </p>
+                                },
+                              )}
+                            </p>
+                            {item.jam_pinjam && (
+                              <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+                                <Clock size={12} /> {item.jam_pinjam.slice(0, 5)}
+                              </p>
+                            )}
+                            {isOverdue(item.tanggal_pinjam, item.tanggal_kembali, item.status) && (
+                              <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                                <AlertTriangle size={12} /> Terlambat
+                              </p>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-8 py-5">
+                          <div className="flex flex-col">
+                            <p className="text-gray-500">
+                              {item.tanggal_kembali
+                                ? new Date(
+                                    item.tanggal_kembali,
+                                  ).toLocaleDateString("id-ID", {
+                                    day: "numeric",
+                                    month: "long",
+                                    year: "numeric",
+                                  })
+                                : "-"}
+                            </p>
+                            {item.jam_kembali && (
+                              <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+                                <Clock size={12} /> {item.jam_kembali.slice(0, 5)}
+                              </p>
+                            )}
+                          </div>
                         </td>
                         <td className="px-8 py-5">
                           {getStatusBadge(item.status, item.tanggal_pinjam, item.tanggal_kembali)}

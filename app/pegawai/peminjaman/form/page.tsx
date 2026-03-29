@@ -56,7 +56,9 @@ export default function PeminjamanForm() {
     const [submitting, setSubmitting] = useState(false);
     const [selectedPegawai, setSelectedPegawai] = useState<User | null>(null);
     const [tanggalPinjam, setTanggalPinjam] = useState("");
+    const [jamPinjam, setJamPinjam] = useState("");
     const [tanggalKembali, setTanggalKembali] = useState("");
+    const [jamKembali, setJamKembali] = useState("");
     const [showItemSelector, setShowItemSelector] = useState(false);
     const [showPegawaiSelector, setShowPegawaiSelector] = useState(false);
     const [searchItem, setSearchItem] = useState("");
@@ -71,10 +73,12 @@ export default function PeminjamanForm() {
     useEffect(() => {
         const today = new Date();
         setTanggalPinjam(today.toISOString().split('T')[0]);
+        setJamPinjam(today.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }));
         
         const nextWeek = new Date();
         nextWeek.setDate(today.getDate() + 7);
         setTanggalKembali(nextWeek.toISOString().split('T')[0]);
+        setJamKembali(today.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }));
     }, []);
 
     useEffect(() => {
@@ -157,7 +161,9 @@ export default function PeminjamanForm() {
                     id_pegawai: selectedPegawai.id,
                     id_petugas: profile?.id,
                     tanggal_pinjam: tanggalPinjam,
+                    jam_pinjam: jamPinjam,
                     tanggal_kembali: tanggalKembali,
+                    jam_kembali: jamKembali,
                     status: role === 'pegawai' ? 'konfirmasi_peminjaman' : 'dipinjam',
                 })
                 .select()
@@ -429,28 +435,51 @@ export default function PeminjamanForm() {
                             )}
                         </Section>
 
-                        {/* TANGGAL */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <Section title="Tanggal Pinjam" icon={<Calendar size={16} />}>
-                                <div className="relative">
-                                    <input
-                                        type="date"
-                                        value={tanggalPinjam}
-                                        onChange={(e) => setTanggalPinjam(e.target.value)}
-                                        min={todayDate}
-                                        className="w-full border rounded-xl px-4 py-3 bg-white"
-                                    />
+                            <Section title="Peminjaman" icon={<Calendar size={16} />}>
+                                <div className="flex flex-col md:flex-row gap-3">
+                                    <div className="flex-1">
+                                        <label className="text-xs text-gray-400 mb-1 block">Tanggal</label>
+                                        <input
+                                            type="date"
+                                            value={tanggalPinjam}
+                                            onChange={(e) => setTanggalPinjam(e.target.value)}
+                                            min={todayDate}
+                                            className="w-full border rounded-xl px-4 py-3 bg-white"
+                                        />
+                                    </div>
+                                    <div className="flex-1 md:max-w-[150px]">
+                                        <label className="text-xs text-gray-400 mb-1 block">Jam</label>
+                                        <input
+                                            type="time"
+                                            value={jamPinjam}
+                                            onChange={(e) => setJamPinjam(e.target.value)}
+                                            className="w-full border rounded-xl px-4 py-3 bg-white"
+                                        />
+                                    </div>
                                 </div>
                             </Section>
-                            <Section title="Tanggal Kembali" icon={<Calendar size={16} />}>
-                                <div className="relative">
-                                    <input
-                                        type="date"
-                                        value={tanggalKembali}
-                                        onChange={(e) => setTanggalKembali(e.target.value)}
-                                        min={tanggalPinjam || todayDate}
-                                        className="w-full border rounded-xl px-4 py-3 bg-white"
-                                    />
+                            <Section title="Pengembalian" icon={<Calendar size={16} />}>
+                                <div className="flex flex-col md:flex-row gap-3">
+                                    <div className="flex-1">
+                                        <label className="text-xs text-gray-400 mb-1 block">Tanggal</label>
+                                        <input
+                                            type="date"
+                                            value={tanggalKembali}
+                                            onChange={(e) => setTanggalKembali(e.target.value)}
+                                            min={tanggalPinjam || todayDate}
+                                            className="w-full border rounded-xl px-4 py-3 bg-white"
+                                        />
+                                    </div>
+                                    <div className="flex-1 md:max-w-[150px]">
+                                        <label className="text-xs text-gray-400 mb-1 block">Jam</label>
+                                        <input
+                                            type="time"
+                                            value={jamKembali}
+                                            onChange={(e) => setJamKembali(e.target.value)}
+                                            className="w-full border rounded-xl px-4 py-3 bg-white"
+                                        />
+                                    </div>
                                 </div>
                             </Section>
                         </div>

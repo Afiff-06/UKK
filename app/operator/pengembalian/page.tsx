@@ -19,7 +19,9 @@ import { getReturnStatus, isPastDueDate } from "@/lib/peminjaman-status";
 interface Peminjaman {
     id_peminjaman: string;
     tanggal_pinjam: string;
+    jam_pinjam: string | null;
     tanggal_kembali: string | null;
+    jam_kembali: string | null;
     status: string;
     pegawai?: { nama: string; email: string };
     petugas?: { nama: string };
@@ -46,7 +48,12 @@ export default function PengembalianPage() {
             let query = supabase
                 .from('peminjaman')
                 .select(`
-                    *,
+                    id_peminjaman,
+                    tanggal_pinjam,
+                    jam_pinjam,
+                    tanggal_kembali,
+                    jam_kembali,
+                    status,
                     pegawai:id_pegawai (nama, email),
                     petugas:id_petugas (nama),
                     detail_peminjaman (
@@ -66,7 +73,23 @@ export default function PengembalianPage() {
             const { data, error } = await query;
 
             if (error) throw error;
-            setPeminjaman(data || []);
+            const formattedData: Peminjaman[] = (data as any[]).map(item => ({
+                id_peminjaman: item.id_peminjaman,
+                tanggal_pinjam: item.tanggal_pinjam,
+                jam_pinjam: item.jam_pinjam,
+                tanggal_kembali: item.tanggal_kembali,
+                jam_kembali: item.jam_kembali,
+                status: item.status,
+                pegawai: Array.isArray(item.pegawai) ? item.pegawai[0] : item.pegawai,
+                petugas: Array.isArray(item.petugas) ? item.petugas[0] : item.petugas,
+                detail_peminjaman: (item.detail_peminjaman || []).map((d: any) => ({
+                    id: d.id,
+                    jumlah: d.jumlah,
+                    inventaris: Array.isArray(d.inventaris) ? d.inventaris[0] : d.inventaris
+                }))
+            }));
+
+            setPeminjaman(formattedData);
         } catch (error) {
             console.error('Error fetching peminjaman:', error);
         } finally {
@@ -123,7 +146,9 @@ export default function PengembalianPage() {
             const { error } = await supabase
                 .from('peminjaman')
                 .update({
-                    status: returnStatus
+                    status: returnStatus,
+                    tanggal_kembali: new Date().toISOString().split('T')[0],
+                    jam_kembali: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false })
                 })
                 .eq('id_peminjaman', id);
 
@@ -318,7 +343,7 @@ export default function PengembalianPage() {
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        <div>
+                                                        <div className="flex flex-col">
                                                             <p className="text-gray-800">
                                                                 {new Date(item.tanggal_pinjam).toLocaleDateString('id-ID', {
                                                                     day: 'numeric',
@@ -326,6 +351,11 @@ export default function PengembalianPage() {
                                                                     year: 'numeric'
                                                                 })}
                                                             </p>
+                                                            {item.jam_pinjam && (
+                                                                <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+                                                                    <Clock size={12} /> {item.jam_pinjam.slice(0, 5)}
+                                                                </p>
+                                                            )}
                                                             {isOverdue(item.tanggal_pinjam, item.tanggal_kembali) && (
                                                                 <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
                                                                     <AlertTriangle size={12} /> Terlambat

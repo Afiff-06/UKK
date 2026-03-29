@@ -21,7 +21,9 @@ import { getReturnStatus, isPastDueDate } from "@/lib/peminjaman-status";
 interface RiwayatPeminjaman {
     id_peminjaman: string;
     tanggal_pinjam: string;
+    jam_pinjam: string | null;
     tanggal_kembali: string | null;
+    jam_kembali: string | null;
     status: string;
     pegawai?: { nama: string; email: string };
     detail_peminjaman: {
@@ -91,7 +93,9 @@ export default function PeminjamanPage() {
                 .select(`
                     id_peminjaman,
                     tanggal_pinjam,
+                    jam_pinjam,
                     tanggal_kembali,
+                    jam_kembali,
                     status,
                     pegawai:id_pegawai (nama, email),
                     detail_peminjaman (
@@ -105,20 +109,25 @@ export default function PeminjamanPage() {
 
             if (error) throw error;
 
-            const riwayat = ((data || []) as any[]).map((item) => ({
+            const formattedData: RiwayatPeminjaman[] = (data as any[]).map(item => ({
                 id_peminjaman: item.id_peminjaman,
                 tanggal_pinjam: item.tanggal_pinjam,
+                jam_pinjam: item.jam_pinjam,
                 tanggal_kembali: item.tanggal_kembali,
+                jam_kembali: item.jam_kembali,
                 status: item.status,
-                pegawai: Array.isArray(item.pegawai) ? item.pegawai[0] : item.pegawai,
-                detail_peminjaman: (item.detail_peminjaman || []).map((detail: any) => ({
-                    id: detail.id,
-                    jumlah: detail.jumlah,
-                    inventaris: Array.isArray(detail.inventaris) ? detail.inventaris[0] : detail.inventaris,
-                })),
+                pegawai: item.pegawai ? {
+                    nama: item.pegawai.nama,
+                    email: item.pegawai.email
+                } : undefined,
+                detail_peminjaman: (item.detail_peminjaman || []).map((d: any) => ({
+                    id: d.id,
+                    jumlah: d.jumlah,
+                    inventaris: Array.isArray(d.inventaris) ? d.inventaris[0] : d.inventaris
+                }))
             }));
 
-            setRiwayatPeminjaman(riwayat);
+            setRiwayatPeminjaman(formattedData);
         } catch (error) {
             console.error("Error fetching riwayat peminjaman:", error);
         }
@@ -327,11 +336,25 @@ export default function PeminjamanPage() {
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 text-gray-700">
-                                                        {new Date(item.tanggal_pinjam).toLocaleDateString("id-ID", {
-                                                            day: "numeric",
-                                                            month: "short",
-                                                            year: "numeric",
-                                                        })}
+                                                        <div className="flex flex-col">
+                                                            <p className="text-gray-800">
+                                                                {new Date(item.tanggal_pinjam).toLocaleDateString('id-ID', {
+                                                                    day: 'numeric',
+                                                                    month: 'long',
+                                                                    year: 'numeric'
+                                                                })}
+                                                            </p>
+                                                            {item.jam_pinjam && (
+                                                                <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+                                                                    <Clock size={12} /> {item.jam_pinjam.slice(0, 5)}
+                                                                </p>
+                                                            )}
+                                                            {isOverdue(item.tanggal_pinjam, item.tanggal_kembali, item.status) && (
+                                                                <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                                                                    <AlertTriangle size={12} /> Terlambat
+                                                                </p>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         {getStatusBadge(item.status, item.tanggal_pinjam, item.tanggal_kembali)}
