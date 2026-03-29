@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, ReactNode, useCallback } from "react";
+import { useState, useEffect, ReactNode } from "react";
 import {
     Plus,
     Minus,
@@ -10,18 +10,15 @@ import {
     Check,
     X,
     Package,
-    Clock,
-    AlertTriangle,
-    CheckCircle2,
     User,
     Calendar,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import LoadingSpinner from "@/components/loading-spinner";
-import { useRouter } from "next/navigation";
 
 interface Inventaris {
     id_inventaris: string;
@@ -43,19 +40,6 @@ interface SelectedItem {
     maxQty: number;
 }
 
-interface RiwayatPeminjaman {
-    id_peminjaman: string;
-    tanggal_pinjam: string;
-    tanggal_kembali: string | null;
-    status: string;
-    pegawai?: { nama: string; email: string };
-    detail_peminjaman: {
-        id: string;
-        jumlah: number;
-        inventaris: { nama: string; kode_inventaris: number };
-    }[];
-}
-
 const formatDateInput = (date: Date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -64,7 +48,7 @@ const formatDateInput = (date: Date) => {
     return `${year}-${month}-${day}`;
 };
 
-export default function Peminjaman() {
+export default function PeminjamanForm() {
     const [items, setItems] = useState<SelectedItem[]>([]);
     const [inventaris, setInventaris] = useState<Inventaris[]>([]);
     const [users, setUsers] = useState<User[]>([]);
@@ -80,12 +64,12 @@ export default function Peminjaman() {
     const [searchItem, setSearchItem] = useState("");
     const [searchPegawai, setSearchPegawai] = useState("");
 
+    const router = useRouter();
     const { role, profile } = useAuth();
     const supabase = createClient();
-    const router = useRouter()
     const todayDate = formatDateInput(new Date());
 
-    // Initialize date on client side to avoid Next.js 16 prerender issues
+    // Initialize date on client side
     useEffect(() => {
         const today = new Date();
         const currentTime = today.getHours().toString().padStart(2, '0') + ':' + 
@@ -183,7 +167,7 @@ export default function Peminjaman() {
                     jam_pinjam: jamPinjam,
                     tanggal_kembali: tanggalKembali,
                     jam_kembali: jamKembali,
-                    status: role === 'pegawai' ? 'pending' : 'dipinjam',
+                    status: role === 'pegawai' ? 'konfirmasi_peminjaman' : 'dipinjam',
                 })
                 .select()
                 .single();
@@ -203,40 +187,29 @@ export default function Peminjaman() {
 
             if (detailError) throw detailError;
 
-            // Update stock if approved
+            // Update stock if approved (operator side)
             if (role !== 'pegawai') {
                 for (const item of items) {
-                    const { error: stockError } = await supabase
-                        .from('inventaris')
-                        .update({ jumlah: inventaris.find(i => i.id_inventaris === item.id_inventaris)!.jumlah - item.qty })
-                        .eq('id_inventaris', item.id_inventaris);
+                    const currentInv = inventaris.find(i => i.id_inventaris === item.id_inventaris);
+                    if (currentInv) {
+                        const { error: stockError } = await supabase
+                            .from('inventaris')
+                            .update({ jumlah: currentInv.jumlah - item.qty })
+                            .eq('id_inventaris', item.id_inventaris);
 
-                    if (stockError) console.error('Stock update error:', stockError);
+                        if (stockError) console.error('Stock update error:', stockError);
+                    }
                 }
             }
 
             alert(role === 'pegawai' ? 'Peminjaman berhasil diajukan dan menunggu persetujuan.' : 'Peminjaman berhasil diproses.');
-
-            // Reset form
-            setItems([]);
-            if (role !== 'pegawai') {
-                setSelectedPegawai(null);
-            }
-
-            // Refresh inventaris
-            const { data: invData } = await supabase
-                .from('inventaris')
-                .select('id_inventaris, nama, jumlah, kode_inventaris')
-                .gt('jumlah', 0)
-                .order('nama');
-            if (invData) setInventaris(invData);
+            router.push('/operator/peminjaman');
 
         } catch (error) {
             console.error('Error creating peminjaman:', error);
             alert('Gagal membuat peminjaman');
         } finally {
             setSubmitting(false);
-            router.push('/operator/peminjaman');
         }
     };
 
@@ -252,21 +225,25 @@ export default function Peminjaman() {
 
     if (loading) {
         return (
-
             <div className="min-h-screen bg-[#f5f7fb] w-full flex items-center justify-center">
                 <LoadingSpinner size="lg" />
             </div>
-
         );
     }
 
     return (
-
         <div className="min-h-screen bg-[#f5f7fb] w-full">
             <main className="flex-1 flex flex-col">
                 <Header title="Peminjaman" />
 
                 <div className="p-8">
+                    <button
+                        onClick={() => router.back()}
+                        className="mb-4 text-gray-500 hover:text-gray-800 flex items-center gap-2 transition-colors"
+                    >
+                        <X size={18} /> Batal
+                    </button>
+
                     <h1 className="text-3xl font-bold mb-2 text-gray-800">
                         {role === 'pegawai' ? 'Ajukan Peminjaman' : 'Form Peminjaman Barang'}
                     </h1>
@@ -301,7 +278,6 @@ export default function Peminjaman() {
                                     <ChevronDown className="text-gray-400" />
                                 </div>
 
-                                {/* Pegawai Selector Dropdown */}
                                 {showPegawaiSelector && (
                                     <div className="mt-2 border rounded-xl shadow-lg bg-white max-h-64 overflow-hidden">
                                         <div className="p-3 border-b">
@@ -336,9 +312,6 @@ export default function Peminjaman() {
                                                     </div>
                                                 </div>
                                             ))}
-                                            {filteredUsers.length === 0 && (
-                                                <p className="px-4 py-3 text-gray-400 text-sm text-center">Tidak ditemukan</p>
-                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -348,14 +321,12 @@ export default function Peminjaman() {
                         {/* PILIH BARANG */}
                         <Section title="Pilih Barang & Jumlah" icon={<Package size={16} />}>
                             <div className="border rounded-2xl overflow-hidden">
-                                {/* Header */}
                                 <div className="grid grid-cols-12 bg-gray-50 px-6 py-3 text-sm text-gray-500">
-                                    <div className="col-span-7">Barang</div>
-                                    <div className="col-span-3">Jumlah</div>
-                                    <div className="col-span-2"></div>
+                                    <div className="col-span-12 md:col-span-7">Barang</div>
+                                    <div className="col-span-6 md:col-span-3">Jumlah</div>
+                                    <div className="col-span-6 md:col-span-2"></div>
                                 </div>
 
-                                {/* Items */}
                                 {items.length === 0 ? (
                                     <div className="px-6 py-8 text-center text-gray-400">
                                         <Package className="mx-auto mb-2" size={32} />
@@ -365,27 +336,27 @@ export default function Peminjaman() {
                                     items.map((item) => (
                                         <div
                                             key={item.id_inventaris}
-                                            className="grid grid-cols-12 items-center px-6 py-4 border-t"
+                                            className="grid grid-cols-12 items-center px-6 py-4 border-t gap-4"
                                         >
-                                            <div className="col-span-7 flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                            <div className="col-span-12 md:col-span-7 flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center shrink-0">
                                                     <Package className="text-blue-600" size={18} />
                                                 </div>
-                                                <div>
-                                                    <span className="font-medium text-gray-800">{item.nama}</span>
+                                                <div className="min-w-0">
+                                                    <span className="font-medium text-gray-800 block truncate">{item.nama}</span>
                                                     <p className="text-xs text-gray-400">Stok: {item.maxQty}</p>
                                                 </div>
                                             </div>
 
-                                            <div className="col-span-3 flex items-center gap-2">
-                                                <div className="flex items-center border rounded-lg overflow-hidden">
+                                            <div className="col-span-6 md:col-span-3 flex items-center gap-2">
+                                                <div className="flex items-center border rounded-lg overflow-hidden bg-white">
                                                     <button
                                                         onClick={() => updateQty(item.id_inventaris, -1)}
                                                         className="px-3 py-2 hover:bg-gray-100 transition-colors"
                                                     >
                                                         <Minus size={14} />
                                                     </button>
-                                                    <div className="px-4 font-medium">{item.qty}</div>
+                                                    <div className="px-4 font-medium min-w-[40px] text-center">{item.qty}</div>
                                                     <button
                                                         onClick={() => updateQty(item.id_inventaris, 1)}
                                                         className="px-3 py-2 hover:bg-gray-100 transition-colors"
@@ -395,23 +366,22 @@ export default function Peminjaman() {
                                                 </div>
                                             </div>
 
-                                            <div className="col-span-2 flex justify-end">
+                                            <div className="col-span-6 md:col-span-2 flex justify-end">
                                                 <button
                                                     onClick={() => removeItem(item.id_inventaris)}
                                                     className="border px-3 py-2 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
                                                 >
-                                                    <Trash2 size={14} />
+                                                    <Trash2 size={16} />
                                                 </button>
                                             </div>
                                         </div>
                                     ))
                                 )}
 
-                                {/* Add Item Button */}
                                 <div className="p-4 border-t">
                                     <button
                                         onClick={() => setShowItemSelector(true)}
-                                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors w-full md:w-auto justify-center"
                                     >
                                         <Plus size={16} />
                                         Tambah Barang
@@ -419,7 +389,6 @@ export default function Peminjaman() {
                                 </div>
                             </div>
 
-                            {/* Item Selector Modal */}
                             {showItemSelector && (
                                 <div className="fixed inset-0 bg-black/30 flex items-center justify-center p-6 z-50">
                                     <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
@@ -519,20 +488,17 @@ export default function Peminjaman() {
                         </div>
 
                         {/* ACTION */}
-                        <div className="flex justify-end gap-3 pt-4">
+                        <div className="flex flex-col md:flex-row justify-end gap-3 pt-4">
                             <button
-                                onClick={() => {
-                                    setItems([]);
-                                    if (role !== 'pegawai') setSelectedPegawai(null);
-                                }}
-                                className="px-6 py-2 border rounded-xl hover:bg-gray-50 transition-colors"
+                                onClick={() => router.push('/operator/peminjaman')}
+                                className="px-6 py-2 border rounded-xl hover:bg-gray-50 transition-colors order-2 md:order-1"
                             >
                                 Batal
                             </button>
                             <button
                                 onClick={handleSubmit}
                                 disabled={submitting || items.length === 0 || (!selectedPegawai && role !== 'pegawai')}
-                                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 justify-center order-1 md:order-2"
                             >
                                 {submitting ? <LoadingSpinner size="sm" /> : <Check size={18} />}
                                 {role === 'pegawai' ? 'Ajukan Peminjaman' : 'Proses Peminjaman'}
@@ -542,7 +508,6 @@ export default function Peminjaman() {
                 </div>
             </main>
         </div>
-
     );
 }
 

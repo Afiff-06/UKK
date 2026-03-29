@@ -13,12 +13,12 @@ import {
     User,
     Calendar,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import LoadingSpinner from "@/components/loading-spinner";
-import { useRouter } from "next/navigation";
 
 interface Inventaris {
     id_inventaris: string;
@@ -64,12 +64,12 @@ export default function PeminjamanForm() {
     const [searchItem, setSearchItem] = useState("");
     const [searchPegawai, setSearchPegawai] = useState("");
 
+    const router = useRouter();
     const { role, profile } = useAuth();
     const supabase = createClient();
-    const router = useRouter();
     const todayDate = formatDateInput(new Date());
 
-    // Initialize date on client side to avoid Next.js 16 prerender issues
+    // Initialize date on client side
     useEffect(() => {
         const today = new Date();
         const currentTime = today.getHours().toString().padStart(2, '0') + ':' + 
@@ -119,7 +119,7 @@ export default function PeminjamanForm() {
         };
 
         fetchData();
-    }, [role, profile, supabase]);
+    }, [profile, role, supabase]);
 
     const updateQty = (id: string, delta: number) => {
         setItems((prev) =>
@@ -167,7 +167,7 @@ export default function PeminjamanForm() {
                     jam_pinjam: jamPinjam,
                     tanggal_kembali: tanggalKembali,
                     jam_kembali: jamKembali,
-                    status: role === 'pegawai' ? 'pending' : 'dipinjam',
+                    status: role === 'pegawai' ? 'konfirmasi_peminjaman' : 'dipinjam',
                 })
                 .select()
                 .single();
@@ -187,19 +187,22 @@ export default function PeminjamanForm() {
 
             if (detailError) throw detailError;
 
-            // Update stock if approved
+            // Update stock if approved (operator side)
             if (role !== 'pegawai') {
                 for (const item of items) {
-                    const { error: stockError } = await supabase
-                        .from('inventaris')
-                        .update({ jumlah: inventaris.find(i => i.id_inventaris === item.id_inventaris)!.jumlah - item.qty })
-                        .eq('id_inventaris', item.id_inventaris);
+                    const currentInv = inventaris.find(i => i.id_inventaris === item.id_inventaris);
+                    if (currentInv) {
+                        const { error: stockError } = await supabase
+                            .from('inventaris')
+                            .update({ jumlah: currentInv.jumlah - item.qty })
+                            .eq('id_inventaris', item.id_inventaris);
 
-                    if (stockError) console.error('Stock update error:', stockError);
+                        if (stockError) console.error('Stock update error:', stockError);
+                    }
                 }
             }
 
-            alert('Peminjaman berhasil diajukan!');
+            alert(role === 'pegawai' ? 'Peminjaman berhasil diajukan dan menunggu persetujuan.' : 'Peminjaman berhasil diproses.');
             router.push('/admin/peminjaman');
 
         } catch (error) {
@@ -234,6 +237,13 @@ export default function PeminjamanForm() {
                 <Header title="Peminjaman" />
 
                 <div className="p-8">
+                    <button
+                        onClick={() => router.back()}
+                        className="mb-4 text-gray-500 hover:text-gray-800 flex items-center gap-2 transition-colors"
+                    >
+                        <X size={18} /> Batal
+                    </button>
+
                     <h1 className="text-3xl font-bold mb-2 text-gray-800">
                         {role === 'pegawai' ? 'Ajukan Peminjaman' : 'Form Peminjaman Barang'}
                     </h1>
@@ -249,7 +259,7 @@ export default function PeminjamanForm() {
                         {role !== 'pegawai' && (
                             <Section title="Pilih Pegawai" icon={<User size={16} />}>
                                 <div
-                                    onClick={() => setShowPegawaiSelector(!showPegawaiSelector)}
+                                    onClick={() => setShowPegawaiSelector(true)}
                                     className="border rounded-xl px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
                                 >
                                     {selectedPegawai ? (
@@ -308,12 +318,13 @@ export default function PeminjamanForm() {
                             </Section>
                         )}
 
+                        {/* PILIH BARANG */}
                         <Section title="Pilih Barang & Jumlah" icon={<Package size={16} />}>
                             <div className="border rounded-2xl overflow-hidden">
                                 <div className="grid grid-cols-12 bg-gray-50 px-6 py-3 text-sm text-gray-500">
-                                    <div className="col-span-7">Barang</div>
-                                    <div className="col-span-3">Jumlah</div>
-                                    <div className="col-span-2"></div>
+                                    <div className="col-span-12 md:col-span-7">Barang</div>
+                                    <div className="col-span-6 md:col-span-3">Jumlah</div>
+                                    <div className="col-span-6 md:col-span-2"></div>
                                 </div>
 
                                 {items.length === 0 ? (
@@ -325,35 +336,56 @@ export default function PeminjamanForm() {
                                     items.map((item) => (
                                         <div
                                             key={item.id_inventaris}
-                                            className="grid grid-cols-12 items-center px-6 py-4 border-t"
+                                            className="grid grid-cols-12 items-center px-6 py-4 border-t gap-4"
                                         >
-                                            <div className="col-span-7 flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                            <div className="col-span-12 md:col-span-7 flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center shrink-0">
                                                     <Package className="text-blue-600" size={18} />
                                                 </div>
-                                                <div>
-                                                    <span className="font-medium text-gray-800">{item.nama}</span>
+                                                <div className="min-w-0">
+                                                    <span className="font-medium text-gray-800 block truncate">{item.nama}</span>
                                                     <p className="text-xs text-gray-400">Stok: {item.maxQty}</p>
                                                 </div>
                                             </div>
 
-                                            <div className="col-span-3 flex items-center gap-2">
-                                                <div className="flex items-center border rounded-lg overflow-hidden">
-                                                    <button onClick={() => updateQty(item.id_inventaris, -1)} className="px-3 py-2 hover:bg-gray-100"><Minus size={14} /></button>
-                                                    <div className="px-4 font-medium">{item.qty}</div>
-                                                    <button onClick={() => updateQty(item.id_inventaris, 1)} className="px-3 py-2 hover:bg-gray-100"><Plus size={14} /></button>
+                                            <div className="col-span-6 md:col-span-3 flex items-center gap-2">
+                                                <div className="flex items-center border rounded-lg overflow-hidden bg-white">
+                                                    <button
+                                                        onClick={() => updateQty(item.id_inventaris, -1)}
+                                                        className="px-3 py-2 hover:bg-gray-100 transition-colors"
+                                                    >
+                                                        <Minus size={14} />
+                                                    </button>
+                                                    <div className="px-4 font-medium min-w-[40px] text-center">{item.qty}</div>
+                                                    <button
+                                                        onClick={() => updateQty(item.id_inventaris, 1)}
+                                                        className="px-3 py-2 hover:bg-gray-100 transition-colors"
+                                                    >
+                                                        <Plus size={14} />
+                                                    </button>
                                                 </div>
                                             </div>
 
-                                            <div className="col-span-2 flex justify-end">
-                                                <button onClick={() => removeItem(item.id_inventaris)} className="border px-3 py-2 rounded-lg text-red-500 hover:bg-red-50"><Trash2 size={14} /></button>
+                                            <div className="col-span-6 md:col-span-2 flex justify-end">
+                                                <button
+                                                    onClick={() => removeItem(item.id_inventaris)}
+                                                    className="border px-3 py-2 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
                                             </div>
                                         </div>
                                     ))
                                 )}
 
                                 <div className="p-4 border-t">
-                                    <button onClick={() => setShowItemSelector(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"><Plus size={16} /> Tambah Barang</button>
+                                    <button
+                                        onClick={() => setShowItemSelector(true)}
+                                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors w-full md:w-auto justify-center"
+                                    >
+                                        <Plus size={16} />
+                                        Tambah Barang
+                                    </button>
                                 </div>
                             </div>
 
@@ -362,24 +394,44 @@ export default function PeminjamanForm() {
                                     <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
                                         <div className="p-4 border-b flex items-center justify-between">
                                             <h3 className="font-semibold">Pilih Barang</h3>
-                                            <button onClick={() => setShowItemSelector(false)}><X className="text-gray-400" /></button>
+                                            <button onClick={() => {
+                                                setShowItemSelector(false);
+                                                setSearchItem("");
+                                            }}>
+                                                <X className="text-gray-400" />
+                                            </button>
                                         </div>
                                         <div className="p-4 border-b">
                                             <div className="relative">
                                                 <Search className="absolute left-3 top-3 text-gray-400" size={16} />
-                                                <input className="w-full pl-9 pr-4 py-2 border rounded-lg" placeholder="Cari barang..." value={searchItem} onChange={(e) => setSearchItem(e.target.value)} autoFocus />
+                                                <input
+                                                    className="w-full pl-9 pr-4 py-2 border rounded-lg"
+                                                    placeholder="Cari barang..."
+                                                    value={searchItem}
+                                                    onChange={(e) => setSearchItem(e.target.value)}
+                                                    autoFocus
+                                                />
                                             </div>
                                         </div>
                                         <div className="max-h-64 overflow-y-auto">
                                             {filteredInventaris.map(inv => (
-                                                <div key={inv.id_inventaris} onClick={() => addItem(inv)} className="px-4 py-3 hover:bg-gray-50 cursor-pointer flex items-center justify-between border-b">
+                                                <div
+                                                    key={inv.id_inventaris}
+                                                    onClick={() => addItem(inv)}
+                                                    className="px-4 py-3 hover:bg-gray-50 cursor-pointer flex items-center justify-between border-b"
+                                                >
                                                     <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center"><Package className="text-blue-600" size={14} /></div>
+                                                        <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center">
+                                                            <Package className="text-blue-600" size={14} />
+                                                        </div>
                                                         <span className="font-medium">{inv.nama}</span>
                                                     </div>
                                                     <span className="text-sm text-gray-400">Stok: {inv.jumlah}</span>
                                                 </div>
                                             ))}
+                                            {filteredInventaris.length === 0 && (
+                                                <p className="px-4 py-8 text-gray-400 text-center">Tidak ada barang tersedia</p>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -435,11 +487,21 @@ export default function PeminjamanForm() {
                             </Section>
                         </div>
 
-                        <div className="flex justify-end gap-3 pt-4">
-                            <button onClick={() => router.push('/admin/peminjaman')} className="px-6 py-2 border rounded-xl hover:bg-gray-50">Batal</button>
-                            <button onClick={handleSubmit} disabled={submitting || items.length === 0} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow transition-colors flex items-center gap-2">
+                        {/* ACTION */}
+                        <div className="flex flex-col md:flex-row justify-end gap-3 pt-4">
+                            <button
+                                onClick={() => router.push('/admin/peminjaman')}
+                                className="px-6 py-2 border rounded-xl hover:bg-gray-50 transition-colors order-2 md:order-1"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                onClick={handleSubmit}
+                                disabled={submitting || items.length === 0 || (!selectedPegawai && role !== 'pegawai')}
+                                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 justify-center order-1 md:order-2"
+                            >
                                 {submitting ? <LoadingSpinner size="sm" /> : <Check size={18} />}
-                                Proses Peminjaman
+                                {role === 'pegawai' ? 'Ajukan Peminjaman' : 'Proses Peminjaman'}
                             </button>
                         </div>
                     </div>
