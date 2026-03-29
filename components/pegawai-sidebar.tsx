@@ -21,7 +21,7 @@ const pegawaiMenu = [
 export default function PegawaiSidebar({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
-    const { logout, user, loading } = useAuth();
+    const { user, loading } = useAuth();
 
     if (loading && !user) {
         return <FullPageLoader />;
