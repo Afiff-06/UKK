@@ -4,8 +4,8 @@ function SidebarItem({ icon, label, active, onClick }: { icon: ReactNode; label:
     return (
         <button
             onClick={onClick}
-            className={`w-full flex items-center gap-3 px-5 py-3 rounded-xl ${active
-                ? "bg-blue-600 text-white shadow"
+            className={`w-full flex items-center gap-3 px-5 py-3 rounded-xl transition-all duration-200 text-sm font-medium ${active
+                ? "bg-blue-600 text-white shadow-md shadow-blue-200"
                 : "text-gray-600 hover:bg-gray-100"
                 }`}
         >

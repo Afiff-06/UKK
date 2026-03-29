@@ -118,8 +118,8 @@ export default function RuangBarangPage() {
     );
 
     return (
-        <div className="min-h-screen bg-[#f5f7fb] w-full">
-            <main className="flex-1 flex flex-col">
+        <div className="flex-1 bg-[#f5f7fb] flex flex-col min-h-screen">
+            <main className="flex-1 flex flex-col overflow-auto">
                 <Header title="Ruang Barang" />
 
                 <div className="p-8">

@@ -245,8 +245,12 @@ export default function Peminjaman() {
 
     if (loading) {
         return (
+<<<<<<< Updated upstream
 
             <div className="min-h-screen bg-[#f5f7fb] w-full flex items-center justify-center">
+=======
+            <div className="flex-1 bg-[#f5f7fb] flex items-center justify-center min-h-screen">
+>>>>>>> Stashed changes
                 <LoadingSpinner size="lg" />
             </div>
 
@@ -254,9 +258,14 @@ export default function Peminjaman() {
     }
 
     return (
+<<<<<<< Updated upstream
 
         <div className="min-h-screen bg-[#f5f7fb] w-full">
             <main className="flex-1 flex flex-col">
+=======
+        <div className="flex-1 bg-[#f5f7fb] flex flex-col min-h-screen">
+            <main className="flex-1 flex flex-col overflow-auto">
+>>>>>>> Stashed changes
                 <Header title="Peminjaman" />
 
                 <div className="p-8">

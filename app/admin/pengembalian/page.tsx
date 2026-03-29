@@ -191,36 +191,40 @@ export default function PengembalianPage() {
 
     return (
 
-        <div className="min-h-screen bg-[#f5f7fb] w-full">
-            <main className="flex-1 flex flex-col">
+        <div className="flex-1 bg-[#f5f7fb] flex flex-col min-h-screen">
+            <main className="flex-1 flex flex-col overflow-auto">
                 <Header title="Pengembalian" />
 
                 <div className="p-8">
                     <h1 className="text-3xl font-bold mb-2 text-gray-800">Pengembalian Barang</h1>
-                    <p className="text-gray-500 mb-6 font-medium">Kelola pengembalian barang yang dipinjam oleh pegawai</p>
+                    <p className="text-gray-500 mb-6">Kelola pengembalian barang yang dipinjam oleh pegawai</p>
 
                     {/* Summary Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                        <div className="bg-white rounded-3xl p-6 shadow-lg shadow-gray-100/50 border border-gray-50 flex items-center gap-5 transition-all hover:scale-[1.02]">
-                            <div className="w-14 h-14 bg-yellow-50 rounded-2xl flex items-center justify-center text-yellow-600">
-                                <Clock size={28} />
+                        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                            <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-yellow-50 rounded-xl flex items-center justify-center">
+                                <Clock className="text-yellow-600" size={24} />
                             </div>
                             <div>
-                                <p className="text-sm font-medium text-gray-400 mb-0.5">Menunggu Konfirmasi</p>
+                                <p className="text-sm font-medium text-gray-500">Menunggu Konfirmasi</p>
                                 <p className="text-2xl font-bold text-gray-800">
                                     {peminjaman.filter(p => p.status === 'konfirmasi_pengembalian').length}
                                 </p>
                             </div>
+                            </div>
                         </div>
-                        <div className="bg-white rounded-3xl p-6 shadow-lg shadow-gray-100/50 border border-gray-50 flex items-center gap-5 transition-all hover:scale-[1.02]">
-                            <div className="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center text-green-600">
-                                <CheckCircle size={28} />
+                        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                            <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center">
+                                <CheckCircle className="text-green-600" size={24} />
                             </div>
                             <div>
-                                <p className="text-sm font-medium text-gray-400 mb-0.5">Selesai</p>
+                                <p className="text-sm font-medium text-gray-500">Selesai</p>
                                 <p className="text-2xl font-bold text-gray-800">
                                     {peminjaman.filter(p => ['dikembalikan', 'terlambat'].includes(p.status)).length}
                                 </p>
+                            </div>
                             </div>
                         </div>
                     </div>
@@ -228,7 +232,7 @@ export default function PengembalianPage() {
                     {/* Search & Filter */}
                     <div className="flex flex-col md:flex-row justify-end gap-4 mb-6">
                         <select
-                            className="border border-gray-200 rounded-2xl px-4 py-2 bg-white text-gray-600 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm font-medium"
+                            className="border rounded-xl px-4 py-2 bg-white text-gray-600 outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
                         >
@@ -240,7 +244,7 @@ export default function PengembalianPage() {
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                             <input
-                                className="border border-gray-200 rounded-2xl pl-10 pr-4 py-2 w-full md:w-72 bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all shadow-sm"
+                                className="w-full md:w-72 pl-10 pr-4 py-2 bg-white border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
                                 placeholder="Cari peminjam atau barang..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -249,7 +253,7 @@ export default function PengembalianPage() {
                     </div>
 
                     {/* Table */}
-                    <div className="bg-white rounded-[2rem] shadow-xl overflow-hidden border border-gray-50">
+                    <div className="bg-white rounded-3xl shadow-lg overflow-hidden border border-gray-50">
                         {loading ? (
                             <div className="p-12">
                                 <LoadingSpinner />
@@ -265,21 +269,21 @@ export default function PengembalianPage() {
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full">
-                                    <thead className="bg-gray-50/50 text-gray-400 text-xs uppercase tracking-wider font-bold">
+                                    <thead className="bg-gray-50 text-sm font-semibold text-gray-500">
                                         <tr>
-                                            <th className="px-8 py-5 text-left border-b border-gray-50">Peminjam</th>
-                                            <th className="px-8 py-5 text-left border-b border-gray-50">Barang</th>
-                                            <th className="px-8 py-5 text-left border-b border-gray-50">Tanggal Pinjam</th>
-                                            <th className="px-8 py-5 text-left border-b border-gray-50">Status</th>
-                                            <th className="px-8 py-5 text-center border-b border-gray-50">Aksi</th>
+                                            <th className="px-6 py-4 text-left">Peminjam</th>
+                                            <th className="px-6 py-4 text-left">Barang</th>
+                                            <th className="px-6 py-4 text-left">Tanggal Pinjam</th>
+                                            <th className="px-6 py-4 text-left">Status</th>
+                                            <th className="px-6 py-4 text-center">Aksi</th>
                                         </tr>
                                     </thead>
 
-                                    <tbody className="divide-y divide-gray-50">
+                                    <tbody className="divide-y divide-gray-100">
                                         {filteredPeminjaman
                                             .map((item) => (
                                             <tr key={item.id_peminjaman} className="group hover:bg-gray-50/50 transition-colors">
-                                                <td className="px-8 py-5">
+                                                <td className="px-6 py-4">
                                                     <div className="flex items-center gap-3">
                                                         <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-700 font-bold shadow-sm">
                                                             {item.pegawai?.nama?.charAt(0)}
@@ -294,7 +298,7 @@ export default function PengembalianPage() {
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-8 py-5">
+                                                <td className="px-6 py-4">
                                                     <div className="space-y-1.5 text-sm">
                                                         {item.detail_peminjaman.map((detail) => (
                                                             <div key={detail.id} className="flex items-center gap-2">
@@ -325,29 +329,29 @@ export default function PengembalianPage() {
                                                         )}
                                                     </div>
                                                 </td>
-                                                    <td className="px-8 py-5">
-                                                        {getStatusBadge(item.status)}
-                                                    </td>
-                                                    <td className="px-8 py-5">
-                                                        <div className="flex justify-center">
-                                                            {item.status === 'konfirmasi_pengembalian' ? (
-                                                                <button
-                                                                    onClick={() => handleReturn(item.id_peminjaman)}
-                                                                    disabled={processingId === item.id_peminjaman}
-                                                                    className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-2xl flex items-center gap-2 transition-all font-bold shadow-lg shadow-green-100 hover:scale-105 active:scale-95 disabled:hover:scale-100 disabled:opacity-50"
-                                                                >
-                                                                    {processingId === item.id_peminjaman ? (
-                                                                        <LoadingSpinner size="sm" />
-                                                                    ) : (
-                                                                        <CheckCircle size={18} />
-                                                                    )}
-                                                                    Konfirmasi Kembali
-                                                                </button>
-                                                            ) : (
-                                                                <span className="text-gray-400 text-sm italic font-medium">Selesai</span>
-                                                            )}
-                                                        </div>
-                                                    </td>
+                                                <td className="px-6 py-4">
+                                                    {getStatusBadge(item.status)}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex justify-center">
+                                                        {item.status === 'konfirmasi_pengembalian' ? (
+                                                            <button
+                                                                onClick={() => handleReturn(item.id_peminjaman)}
+                                                                disabled={processingId === item.id_peminjaman}
+                                                                className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all font-semibold shadow-md shadow-green-100 disabled:opacity-50"
+                                                            >
+                                                                {processingId === item.id_peminjaman ? (
+                                                                    <LoadingSpinner size="sm" />
+                                                                ) : (
+                                                                    <CheckCircle size={18} />
+                                                                )}
+                                                                Konfirmasi Kembali
+                                                            </button>
+                                                        ) : (
+                                                            <span className="text-gray-400 text-sm italic font-medium">Selesai</span>
+                                                        )}
+                                                    </div>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>

@@ -201,8 +201,8 @@ export default function PengembalianPage() {
 
     return (
 
-        <div className="min-h-screen bg-[#f5f7fb] w-full">
-            <main className="flex-1 flex flex-col">
+        <div className="flex-1 bg-[#f5f7fb] flex flex-col min-h-screen">
+            <main className="flex-1 flex flex-col overflow-auto">
                 <Header title="Pengembalian" />
 
                 <div className="p-8">
@@ -210,8 +210,8 @@ export default function PengembalianPage() {
                     <p className="text-gray-500 mb-6">Konfirmasi pengembalian barang dari pegawai</p>
 
                     {/* Summary Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                        <div className="bg-white rounded-2xl p-6 shadow-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
                             <div className="flex items-center gap-4">
                                 <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
                                     <Clock className="text-yellow-600" />
@@ -242,7 +242,7 @@ export default function PengembalianPage() {
                     {/* Search & Filter */}
                     <div className="flex flex-col md:flex-row justify-end gap-4 mb-6">
                         <select
-                            className="border rounded-xl px-4 py-2 bg-white text-gray-600 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm"
+                            className="border rounded-xl px-4 py-2 bg-white text-gray-600 outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
                         >
@@ -254,7 +254,7 @@ export default function PengembalianPage() {
                         <div className="relative">
                             <Search className="absolute left-3 top-3 text-gray-400" size={18} />
                             <input
-                                className="border rounded-xl pl-10 pr-4 py-2 w-full md:w-64 bg-white outline-none focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm"
+                                className="w-full md:w-64 pl-10 pr-4 py-2 bg-white border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
                                 placeholder="Cari peminjam atau barang..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}

@@ -136,15 +136,15 @@ export default function PengembalianForm() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f5f7fb] w-full flex items-center justify-center">
+      <div className="flex-1 bg-[#f5f7fb] flex items-center justify-center min-h-screen">
         <LoadingSpinner size="lg" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] w-full">
-      <main className="flex-1 flex flex-col">
+    <div className="flex-1 bg-[#f5f7fb] flex flex-col min-h-screen">
+      <main className="flex-1 flex flex-col overflow-auto">
         <Header title="Pengembalian" />
 
         <div className="p-8">
