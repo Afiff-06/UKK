@@ -8,6 +8,7 @@ import {
     CheckCircle2,
     Search,
     Plus,
+    XCircle,
 } from "lucide-react";
 
 import Header from "@/components/header";
@@ -17,8 +18,7 @@ import LoadingSpinner from "@/components/loading-spinner";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { getReturnStatus, isPastDueDate } from "@/lib/peminjaman-status";
-
-// Form-related interfaces removed
+import { showSuccess, showError, showConfirm, showInputDialog } from "@/lib/swal";
 
 interface RiwayatPeminjaman {
     id_peminjaman: string;
@@ -27,27 +27,13 @@ interface RiwayatPeminjaman {
     jam_pinjam: string | null;
     jam_kembali: string | null;
     status: string;
+    alasan_penolakan: string | null;
     pegawai?: { nama: string; email: string };
     detail_peminjaman: {
         id: string;
         jumlah: number;
         inventaris: { id_inventaris: string; nama: string; kode_inventaris: number };
     }[];
-}
-
-interface RiwayatPeminjamanRow {
-    id_peminjaman: string;
-    tanggal_pinjam: string;
-    tanggal_kembali: string | null;
-    jam_pinjam: string | null;
-    jam_kembali: string | null;
-    status: string;
-    pegawai?: { nama: string; email: string } | null;
-    detail_peminjaman?: {
-        id: string;
-        jumlah: number;
-        inventaris?: { nama: string; kode_inventaris: number } | null;
-    }[] | null;
 }
 
 export default function Peminjaman() {
@@ -65,7 +51,7 @@ export default function Peminjaman() {
         return isPastDueDate(tanggalPinjam, tanggalKembali, new Date(), jamKembali);
     };
 
-    const getStatusBadge = (status: string, tanggalPinjam: string, tanggalKembali: string | null, jamKembali?: string | null) => {
+    const getStatusBadge = (status: string, tanggalPinjam: string, tanggalKembali: string | null, jamKembali?: string | null, alasanPenolakan?: string | null) => {
         if (status === "terlambat" || isOverdue(tanggalPinjam, tanggalKembali, status, jamKembali)) {
             return (
                 <span className="flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm">
@@ -93,6 +79,19 @@ export default function Peminjaman() {
                         <CheckCircle2 size={14} /> Dikembalikan
                     </span>
                 );
+            case "ditolak":
+                return (
+                    <div>
+                        <span className="flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm">
+                            <XCircle size={14} /> Ditolak
+                        </span>
+                        {alasanPenolakan && (
+                            <p className="text-xs text-red-500 mt-1 max-w-[200px] truncate" title={alasanPenolakan}>
+                                Alasan: {alasanPenolakan}
+                            </p>
+                        )}
+                    </div>
+                );
             default:
                 return (
                     <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
@@ -113,6 +112,7 @@ export default function Peminjaman() {
                     jam_pinjam,
                     jam_kembali,
                     status,
+                    alasan_penolakan,
                     pegawai:id_pegawai (nama, email),
                     detail_peminjaman (
                         id,
@@ -120,7 +120,7 @@ export default function Peminjaman() {
                         inventaris:id_inventaris (id_inventaris, nama, kode_inventaris)
                     )
                 `)
-                .in('status', ['pending', 'konfirmasi_peminjaman', 'konfirmasi_pengembalian', 'dipinjam'])
+                .in('status', ['pending', 'konfirmasi_peminjaman', 'konfirmasi_pengembalian', 'dipinjam', 'ditolak'])
                 .order("tanggal_pinjam", { ascending: false });
 
             if (error) throw error;
@@ -132,6 +132,7 @@ export default function Peminjaman() {
                 jam_pinjam: item.jam_pinjam,
                 jam_kembali: item.jam_kembali,
                 status: item.status,
+                alasan_penolakan: item.alasan_penolakan,
                 pegawai: Array.isArray(item.pegawai) ? item.pegawai[0] : item.pegawai,
                 detail_peminjaman: (item.detail_peminjaman || []).map((detail: any) => ({
                     id: detail.id,
@@ -147,7 +148,8 @@ export default function Peminjaman() {
     }, [supabase]);
 
     const handleApproveReturn = async (id: string) => {
-        if (!confirm('Konfirmasi barang ini telah dikembalikan?')) return;
+        const confirmed = await showConfirm('Konfirmasi Pengembalian?', 'Barang ini telah dikembalikan?', 'Ya, Konfirmasi', 'Batal');
+        if (!confirmed) return;
 
         setProcessingId(id);
         try {
@@ -182,24 +184,24 @@ export default function Peminjaman() {
 
             if (error) throw error;
 
-            alert('Pengembalian berhasil disetujui');
+            await showSuccess('Berhasil!', 'Pengembalian berhasil disetujui');
             fetchRiwayatPeminjaman();
         } catch (error) {
             console.error('Error approving return:', error);
-            alert('Gagal menyetujui pengembalian');
+            await showError('Gagal', 'Gagal menyetujui pengembalian');
         } finally {
             setProcessingId(null);
         }
     };
 
     const handleApproveBorrow = async (id: string) => {
-        if (!confirm('Setujui peminjaman ini?')) return;
+        const confirmed = await showConfirm('Setujui Peminjaman?', 'Peminjaman ini akan disetujui dan stok barang akan dikurangi.', 'Ya, Setujui', 'Batal');
+        if (!confirmed) return;
 
         setProcessingId(id);
         try {
             const pinjaman = riwayatPeminjaman.find(p => p.id_peminjaman === id);
             if (!pinjaman) return;
-
 
             // 1. Check & Update each item's stock
             for (const detail of pinjaman.detail_peminjaman) {
@@ -227,11 +229,43 @@ export default function Peminjaman() {
 
             if (error) throw error;
 
-            alert('Peminjaman berhasil disetujui');
+            await showSuccess('Berhasil!', 'Peminjaman berhasil disetujui');
             fetchRiwayatPeminjaman();
         } catch (error: any) {
             console.error('Error approving borrow:', error);
-            alert(error.message);
+            await showError('Gagal', error.message || 'Terjadi kesalahan saat menyetujui peminjaman');
+        } finally {
+            setProcessingId(null);
+        }
+    };
+
+    const handleRejectBorrow = async (id: string) => {
+        const alasan = await showInputDialog(
+            'Tolak Peminjaman?',
+            'Berikan alasan penolakan peminjaman ini.',
+            'Tulis alasan penolakan...',
+            'Ya, Tolak',
+            'Batal'
+        );
+        if (!alasan) return;
+
+        setProcessingId(id);
+        try {
+            const { error } = await supabase
+                .from('peminjaman')
+                .update({
+                    status: 'ditolak',
+                    alasan_penolakan: alasan,
+                })
+                .eq('id_peminjaman', id);
+
+            if (error) throw error;
+
+            await showSuccess('Ditolak', 'Peminjaman berhasil ditolak');
+            fetchRiwayatPeminjaman();
+        } catch (error: any) {
+            console.error('Error rejecting borrow:', error);
+            await showError('Gagal', error.message || 'Terjadi kesalahan saat menolak peminjaman');
         } finally {
             setProcessingId(null);
         }
@@ -251,8 +285,6 @@ export default function Peminjaman() {
         fetchData();
     }, [fetchRiwayatPeminjaman]);
 
-    // Form helper functions removed
-
     const jumlahAktif = riwayatPeminjaman.filter((item) => item.status === "dipinjam").length;
     const jumlahMenunggu = riwayatPeminjaman.filter((item) => ["pending", "konfirmasi_peminjaman"].includes(item.status)).length;
     const jumlahTerlambat = riwayatPeminjaman.filter((item) =>
@@ -261,16 +293,13 @@ export default function Peminjaman() {
 
     if (loading) {
         return (
-
             <div className="flex-1 bg-[#f5f7fb] flex items-center justify-center min-h-screen">
                 <LoadingSpinner size="lg" />
             </div>
-
         );
     }
 
     return (
-
         <div className="flex-1 bg-[#f5f7fb] flex flex-col min-h-screen">
             <main className="flex-1 flex flex-col overflow-auto">
                 <Header title="Peminjaman" />
@@ -415,7 +444,7 @@ export default function Peminjaman() {
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        {getStatusBadge(item.status, item.tanggal_pinjam, item.tanggal_kembali, item.jam_kembali)}
+                                                        {getStatusBadge(item.status, item.tanggal_pinjam, item.tanggal_kembali, item.jam_kembali, item.alasan_penolakan)}
                                                     </td>
                                                     <td className="px-6 py-4 text-center">
                                                         {item.status === 'konfirmasi_pengembalian' && (
@@ -429,14 +458,24 @@ export default function Peminjaman() {
                                                             </button>
                                                         )}
                                                         {item.status === 'konfirmasi_peminjaman' && (
-                                                            <button
-                                                                onClick={() => handleApproveBorrow(item.id_peminjaman)}
-                                                                disabled={!!processingId}
-                                                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-md shadow-blue-100 flex items-center gap-2 mx-auto"
-                                                            >
-                                                                {processingId === item.id_peminjaman ? <LoadingSpinner size="sm" /> : <CheckCircle2 size={16} />}
-                                                                Setujui Pinjam
-                                                            </button>
+                                                            <div className="flex items-center gap-2 justify-center">
+                                                                <button
+                                                                    onClick={() => handleApproveBorrow(item.id_peminjaman)}
+                                                                    disabled={!!processingId}
+                                                                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-md shadow-blue-100 flex items-center gap-2"
+                                                                >
+                                                                    {processingId === item.id_peminjaman ? <LoadingSpinner size="sm" /> : <CheckCircle2 size={16} />}
+                                                                    Terima
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleRejectBorrow(item.id_peminjaman)}
+                                                                    disabled={!!processingId}
+                                                                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-md shadow-red-100 flex items-center gap-2"
+                                                                >
+                                                                    {processingId === item.id_peminjaman ? <LoadingSpinner size="sm" /> : <XCircle size={16} />}
+                                                                    Tolak
+                                                                </button>
+                                                            </div>
                                                         )}
                                                         {['dipinjam', 'dikembalikan', 'terlambat', 'ditolak'].includes(item.status) && (
                                                             <span className="text-gray-400 text-xs">-</span>
@@ -452,8 +491,5 @@ export default function Peminjaman() {
                 </div>
             </main>
         </div>
-
     );
 }
-
-// Removed Section component as part of form feature removal

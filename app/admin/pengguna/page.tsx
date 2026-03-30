@@ -17,6 +17,7 @@ import { manageUserAction } from "./user-actions";
 import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
 import LoadingSpinner from "@/components/loading-spinner";
+import { showSuccess, showError, showWarning, showConfirmDanger, showConfirm } from "@/lib/swal";
 
 interface UserData {
     id: string;
@@ -76,7 +77,7 @@ export default function ManajemenPengguna() {
     const handleSubmit = async () => {
         try {
             if (formData.nip && formData.nip.length !== 18) {
-                alert('NIP harus tepat 18 digit.');
+                await showWarning('Perhatian', 'NIP harus tepat 18 digit.');
                 return;
             }
 
@@ -99,7 +100,7 @@ export default function ManajemenPengguna() {
             } else {
                 // Create new user via Server Action
                 if (!formData.email) {
-                    alert('Email wajib diisi untuk membuat pengguna baru');
+                    await showWarning('Perhatian', 'Email wajib diisi untuk membuat pengguna baru');
                     return;
                 }
                 const result = await manageUserAction({
@@ -123,12 +124,13 @@ export default function ManajemenPengguna() {
             fetchUsers();
         } catch (error: any) {
             console.error('Error saving user:', error);
-            alert(error.message || 'Gagal menyimpan pengguna.');
+            await showError('Gagal', error.message || 'Gagal menyimpan pengguna.');
         }
     };
 
     const handleDelete = async (user: UserData) => {
-        if (!confirm(`Hapus pengguna "${user.nama}"?`)) return;
+        const confirmed = await showConfirmDanger(`Hapus pengguna "${user.nama}"?`, 'Pengguna ini akan dihapus secara permanen.', 'Ya, Hapus', 'Batal');
+        if (!confirmed) return;
 
         try {
             const result = await manageUserAction({
@@ -139,7 +141,7 @@ export default function ManajemenPengguna() {
             fetchUsers();
         } catch (error: any) {
             console.error('Error deleting user:', error);
-            alert(error.message || 'Gagal menghapus pengguna.');
+            await showError('Gagal', error.message || 'Gagal menghapus pengguna.');
         }
     };
 
@@ -147,7 +149,8 @@ export default function ManajemenPengguna() {
         const isCurrentlyBlocked = user.blocked_until && new Date(user.blocked_until) > new Date();
 
         if (isCurrentlyBlocked) {
-            if (!confirm(`Buka blokir pengguna "${user.nama}"?`)) return;
+            const confirmed = await showConfirm(`Buka blokir pengguna "${user.nama}"?`, 'Pengguna ini akan bisa login kembali.', 'Ya, Buka Blokir', 'Batal');
+            if (!confirmed) return;
             try {
                 const { error } = await supabase
                     .from('tb_user')
@@ -157,7 +160,7 @@ export default function ManajemenPengguna() {
                 fetchUsers();
             } catch (error: any) {
                 console.error('Error unblocking user:', error);
-                alert(error.message || 'Gagal membuka blokir.');
+                    await showError('Gagal', error.message || 'Gagal membuka blokir.');
             }
         } else {
             setUserToBan(user);
@@ -183,7 +186,7 @@ export default function ManajemenPengguna() {
             fetchUsers();
         } catch (error: any) {
             console.error('Error banning user:', error);
-            alert(error.message || 'Gagal memblokir pengguna.');
+            await showError('Gagal', error.message || 'Gagal memblokir pengguna.');
         }
     };
 

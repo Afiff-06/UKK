@@ -15,6 +15,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import LoadingSpinner from "@/components/loading-spinner";
 import { getReturnStatus, isPastDueDate } from "@/lib/peminjaman-status";
+import { showSuccess, showError, showConfirm } from "@/lib/swal";
 
 interface Peminjaman {
     id_peminjaman: string;
@@ -76,7 +77,8 @@ export default function PengembalianPage() {
     }, [profile, role]);
 
     const handleReturn = async (id: string) => {
-        if (!confirm('Konfirmasi pengembalian barang ini?')) return;
+        const confirmed = await showConfirm('Konfirmasi Pengembalian?', 'Barang ini akan dikonfirmasi telah dikembalikan.', 'Ya, Konfirmasi', 'Batal');
+        if (!confirmed) return;
 
         setProcessingId(id);
         try {
@@ -124,10 +126,11 @@ export default function PengembalianPage() {
 
             if (error) throw error;
 
+            await showSuccess('Berhasil!', 'Pengembalian berhasil dikonfirmasi');
             fetchPeminjaman();
         } catch (error) {
             console.error('Error processing return:', error);
-            alert('Gagal memproses pengembalian. Silakan coba lagi.');
+            await showError('Gagal', 'Gagal memproses pengembalian. Silakan coba lagi.');
         } finally {
             setProcessingId(null);
         }

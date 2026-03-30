@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Plus,
+  XCircle,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -25,6 +26,7 @@ interface RiwayatPeminjaman {
   jam_pinjam: string | null;
   jam_kembali: string | null;
   status: string;
+  alasan_penolakan: string | null;
   pegawai?: { nama: string; email: string };
   detail_peminjaman: {
     id: string;
@@ -40,6 +42,7 @@ interface RiwayatPeminjamanRow {
   jam_pinjam: string | null;
   jam_kembali: string | null;
   status: string;
+  alasan_penolakan: string | null;
   pegawai?: { nama: string; email: string }[] | null;
   detail_peminjaman?:
     | {
@@ -66,7 +69,7 @@ export default function Peminjaman() {
     return isPastDueDate(tanggalPinjam, tanggalKembali, new Date(), jamKembali);
   };
 
-  const getStatusBadge = (status: string, tanggalPinjam: string, tanggalKembali: string | null, jamKembali?: string | null) => {
+  const getStatusBadge = (status: string, tanggalPinjam: string, tanggalKembali: string | null, jamKembali?: string | null, alasanPenolakan?: string | null) => {
     if (status === "terlambat" || isOverdue(tanggalPinjam, tanggalKembali, status, jamKembali)) {
       return (
         <span className="flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm">
@@ -95,6 +98,19 @@ export default function Peminjaman() {
             <CheckCircle2 size={14} /> Dikembalikan
           </span>
         );
+      case "ditolak":
+        return (
+          <div>
+            <span className="flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm">
+              <XCircle size={14} /> Ditolak
+            </span>
+            {alasanPenolakan && (
+              <p className="text-xs text-red-500 mt-1 max-w-[200px]" title={alasanPenolakan}>
+                Alasan: {alasanPenolakan}
+              </p>
+            )}
+          </div>
+        );
       default:
         return (
           <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
@@ -117,6 +133,7 @@ export default function Peminjaman() {
                     jam_pinjam,
                     jam_kembali,
                     status,
+                    alasan_penolakan,
                     pegawai:id_pegawai (nama, email),
                     detail_peminjaman (
                         id,
@@ -125,7 +142,7 @@ export default function Peminjaman() {
                     )
                 `,
           )
-          .in("status", ["pending", "konfirmasi_peminjaman", "dipinjam"])
+          .in("status", ["pending", "konfirmasi_peminjaman", "dipinjam", "ditolak"])
           .order("tanggal_pinjam", { ascending: false });
 
         if (currentRole === "pegawai" && currentProfile?.id) {
@@ -143,6 +160,7 @@ export default function Peminjaman() {
             jam_pinjam: item.jam_pinjam,
             jam_kembali: item.jam_kembali,
             status: item.status,
+            alasan_penolakan: item.alasan_penolakan,
             pegawai: item.pegawai?.[0]
               ? {
                   nama: item.pegawai[0].nama,
@@ -357,7 +375,7 @@ export default function Peminjaman() {
                           </p>
                         </td>
                         <td className="px-8 py-5">
-                          {getStatusBadge(item.status, item.tanggal_pinjam, item.tanggal_kembali, item.jam_kembali)}
+                          {getStatusBadge(item.status, item.tanggal_pinjam, item.tanggal_kembali, item.jam_kembali, item.alasan_penolakan)}
                         </td>
                       </tr>
                     ))}

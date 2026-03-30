@@ -19,6 +19,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import LoadingSpinner from "@/components/loading-spinner";
 import { useRouter } from "next/navigation";
+import TimePicker from "@/components/time-picker";
+import { showSuccess, showError, showWarning } from "@/lib/swal";
 
 interface Inventaris {
     id_inventaris: string;
@@ -150,12 +152,12 @@ export default function PeminjamanForm() {
 
     const handleSubmit = async () => {
         if (!selectedPegawai || items.length === 0) {
-            alert('Pilih pegawai dan tambahkan barang terlebih dahulu');
+            await showWarning('Perhatian', 'Pilih pegawai dan tambahkan barang terlebih dahulu');
             return;
         }
 
         if (jamPinjam < "07:00" || jamPinjam > "15:00" || jamKembali < "07:00" || jamKembali > "15:00") {
-            alert('Waktu peminjaman dan pengembalian hanya diperbolehkan antara jam 07:00 dan 15:00');
+            await showWarning('Waktu Tidak Valid', 'Waktu peminjaman dan pengembalian hanya diperbolehkan antara jam 07:00 dan 15:00');
             return;
         }
 
@@ -203,12 +205,12 @@ export default function PeminjamanForm() {
                 }
             }
 
-            alert('Peminjaman berhasil diajukan!');
+            await showSuccess('Berhasil!', 'Peminjaman berhasil diajukan!');
             router.push('/admin/peminjaman');
 
         } catch (error) {
             console.error('Error creating peminjaman:', error);
-            alert('Gagal membuat peminjaman');
+            await showError('Gagal', 'Gagal membuat peminjaman');
         } finally {
             setSubmitting(false);
         }
@@ -404,14 +406,12 @@ export default function PeminjamanForm() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-600 mb-1 ml-1">Jam Peminjaman</label>
-                                        <input
-                                            type="time"
+                                        <TimePicker
+                                            label="Jam Peminjaman"
                                             value={jamPinjam}
-                                            onChange={(e) => setJamPinjam(e.target.value)}
-                                            min="07:00"
-                                            max="15:00"
-                                            className="w-full border rounded-xl px-4 py-3"
+                                            onChange={setJamPinjam}
+                                            minHour={7}
+                                            maxHour={15}
                                         />
                                     </div>
                                 </div>
@@ -429,14 +429,12 @@ export default function PeminjamanForm() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-600 mb-1 ml-1">Jam Pengembalian</label>
-                                        <input
-                                            type="time"
+                                        <TimePicker
+                                            label="Jam Pengembalian"
                                             value={jamKembali}
-                                            onChange={(e) => setJamKembali(e.target.value)}
-                                            min="07:00"
-                                            max="15:00"
-                                            className="w-full border rounded-xl px-4 py-3"
+                                            onChange={setJamKembali}
+                                            minHour={7}
+                                            maxHour={15}
                                         />
                                     </div>
                                 </div>
