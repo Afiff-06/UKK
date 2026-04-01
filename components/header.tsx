@@ -6,10 +6,31 @@ import { useAuth } from '@/lib/auth-context';
 import { createClient } from '@/lib/supabase/client';
 import { isPastDueDate, getDueDate } from '@/lib/peminjaman-status';
 import { useRouter } from 'next/navigation';
+import { getRoleLabel, getRoutePrefixForRole, isBorrowerRole } from '@/lib/roles';
 
 interface HeaderProps {
     title: string;
-    onMenuClick?: () => void;
+}
+
+interface NotificationBorrowerRow {
+    nama?: string | null;
+}
+
+interface NotificationDetailRow {
+    inventaris?: {
+        nama?: string | null;
+    }[] | {
+        nama?: string | null;
+    } | null;
+}
+
+interface NotificationRow {
+    id_peminjaman: string;
+    tanggal_pinjam: string;
+    tanggal_kembali: string | null;
+    status: string;
+    pegawai?: NotificationBorrowerRow[] | NotificationBorrowerRow | null;
+    detail_peminjaman?: NotificationDetailRow[] | null;
 }
 
 interface Notification {
@@ -21,7 +42,7 @@ interface Notification {
     isActive: boolean;
 }
 
-export default function Header({ title, onMenuClick }: HeaderProps) {
+export default function Header({ title }: HeaderProps) {
     const { profile, role, logout } = useAuth();
     const router = useRouter();
     const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -29,20 +50,13 @@ export default function Header({ title, onMenuClick }: HeaderProps) {
     const notifRef = useRef<HTMLDivElement>(null);
     const supabase = createClient();
 
-    const getRoleLabel = (role: string | null) => {
-        switch (role) {
-            case 'admin': return 'Administrator';
-            case 'operator': return 'Operator';
-            case 'pegawai': return 'Pegawai';
-            default: return 'User';
-        }
-    };
-
     const getRoleColor = (role: string | null) => {
         switch (role) {
             case 'admin': return 'from-purple-500 to-purple-600';
             case 'operator': return 'from-blue-500 to-blue-600';
             case 'pegawai': return 'from-green-500 to-green-600';
+            case 'guru': return 'from-emerald-500 to-emerald-600';
+            case 'siswa': return 'from-orange-500 to-amber-500';
             default: return 'from-gray-500 to-gray-600';
         }
     };
@@ -67,7 +81,7 @@ export default function Header({ title, onMenuClick }: HeaderProps) {
                     .in('status', ['dipinjam', 'pending', 'terlambat'])
                     .order('tanggal_pinjam', { ascending: false });
                 
-                if (role === 'pegawai') {
+                if (isBorrowerRole(role)) {
                     query = query.eq('id_pegawai', profile.id);
                 }
 
@@ -78,15 +92,21 @@ export default function Header({ title, onMenuClick }: HeaderProps) {
                 if (data) {
                     const allNotifs: Notification[] = [];
 
-                    data.forEach((p: any) => {
+                    (data as NotificationRow[]).forEach((p) => {
                         const isLateNow = ['dipinjam', 'pending'].includes(p.status) && isPastDueDate(p.tanggal_pinjam, p.tanggal_kembali);
                         const wasReturnedLate = p.status === 'terlambat';
+                        const borrower = Array.isArray(p.pegawai) ? p.pegawai[0] : p.pegawai;
 
                         if (isLateNow || wasReturnedLate) {
                             allNotifs.push({
                                 id_peminjaman: p.id_peminjaman,
-                                nama_pegawai: p.pegawai?.nama || 'Unknown',
-                                nama_barang: p.detail_peminjaman?.map((d: any) => d.inventaris?.nama).join(', ') || 'Barang',
+                                nama_pegawai: borrower?.nama || 'Unknown',
+                                nama_barang: p.detail_peminjaman?.map((detail) => {
+                                    const inventaris = Array.isArray(detail.inventaris)
+                                        ? detail.inventaris[0]
+                                        : detail.inventaris;
+                                    return inventaris?.nama || 'Barang';
+                                }).join(', ') || 'Barang',
                                 tanggal_kembali: p.tanggal_kembali || '',
                                 tanggal_pinjam: p.tanggal_pinjam || '',
                                 isActive: isLateNow
@@ -119,11 +139,9 @@ export default function Header({ title, onMenuClick }: HeaderProps) {
         setShowNotifications(!showNotifications);
     };
 
-    const navigateToDetail = (id: string) => {
+    const navigateToDetail = () => {
         setShowNotifications(false);
-        if (role === 'admin') router.push(`/admin/peminjaman`);
-        else if (role === 'operator') router.push(`/operator/peminjaman`);
-        else router.push(`/pegawai/peminjaman`);
+        router.push(`${getRoutePrefixForRole(role)}/peminjaman`);
     };
 
     const activeCount = notifications.filter(n => n.isActive).length;
@@ -176,7 +194,7 @@ export default function Header({ title, onMenuClick }: HeaderProps) {
                                             return (
                                                 <div 
                                                     key={`${notif.id_peminjaman}-${index}`}
-                                                    onClick={() => navigateToDetail(notif.id_peminjaman)}
+                                                    onClick={navigateToDetail}
                                                     className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors duration-150 relative overflow-hidden group ${notif.isActive ? '' : 'bg-gray-50/50'}`}
                                                 >
                                                     <div className="flex gap-3">
@@ -190,7 +208,7 @@ export default function Header({ title, onMenuClick }: HeaderProps) {
                                                                 {notif.isActive ? 'Peringatan Terlambat' : 'Riwayat Terlambat'}
                                                             </p>
                                                             <p className={`text-sm leading-snug mb-2 ${notif.isActive ? 'text-gray-600' : 'text-gray-500'}`}>
-                                                                {role === 'pegawai' 
+                                                                {isBorrowerRole(role) 
                                                                     ? (notif.isActive ? `Anda belum mengembalikan ${notif.nama_barang}` : `Anda pernah terlambat mengembalikan ${notif.nama_barang}`)
                                                                     : (notif.isActive ? `${notif.nama_pegawai} telat mengembalikan ${notif.nama_barang}` : `${notif.nama_pegawai} telah tercatat terlambat mengembalikan ${notif.nama_barang}`)
                                                                 }

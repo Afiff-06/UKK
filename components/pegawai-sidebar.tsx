@@ -11,6 +11,7 @@ import {
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { FullPageLoader } from "./loading-spinner";
+import { getRoleLabel } from "@/lib/roles";
 
 const pegawaiMenu = [
     { icon: <LayoutDashboard size={20} />, label: "Beranda", path: "/pegawai/dashboard" },
@@ -21,7 +22,7 @@ const pegawaiMenu = [
 export default function PegawaiSidebar({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
-    const { user, loading } = useAuth();
+    const { user, role, loading } = useAuth();
 
     if (loading && !user) {
         return <FullPageLoader />;
@@ -32,7 +33,7 @@ export default function PegawaiSidebar({ children }: { children: React.ReactNode
     }
 
     return (
-        <div className="min-h-screen bg-[#f5f7fb] flex w-full">
+        <div className="app-light-ui min-h-screen bg-[#f5f7fb] flex w-full">
             <aside className="w-72 bg-white shadow-lg flex flex-col sticky top-0 h-screen overflow-y-auto">
                 <div className="p-6 border-b">
                     <div className="flex items-center gap-3">
@@ -41,7 +42,7 @@ export default function PegawaiSidebar({ children }: { children: React.ReactNode
                         </div>
                         <div>
                             <h1 className="font-bold text-lg text-gray-800">Manajemen Aset</h1>
-                            <p className="text-xs text-gray-500">Pegawai</p>
+                            <p className="text-xs text-gray-500">{getRoleLabel(role)}</p>
                         </div>
                     </div>
                 </div>

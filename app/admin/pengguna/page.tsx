@@ -1,70 +1,86 @@
 "use client";
 
-import { useState, useEffect, ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-    Plus,
-    Search,
-    X,
-    Pencil,
-    Trash2,
-    Users,
-    Ban,
     Eye,
     EyeOff,
+    Pencil,
+    Plus,
+    Search,
+    Trash2,
+    Users,
+    X,
 } from "lucide-react";
-import { manageUserAction } from "./user-actions";
 
 import Header from "@/components/header";
-import { createClient } from "@/lib/supabase/client";
 import LoadingSpinner from "@/components/loading-spinner";
-import { showSuccess, showError, showWarning, showConfirmDanger, showConfirm } from "@/lib/swal";
+import { getRoleLabel } from "@/lib/roles";
+import { canDeleteManagedUser, getEditableRoleOptions } from "@/lib/user-validation";
+import { normalizeDigitsOnly } from "@/lib/user-normalization";
+import { showConfirmDanger, showError, showSuccess, showWarning } from "@/lib/swal";
+import { getManagedUsersAction, manageUserAction } from "./user-actions";
 
 interface UserData {
     id: string;
     nama: string;
     username: string;
-    email: string;
-    role: string;
-    nip?: string;
+    role: "admin" | "operator" | "pegawai" | "guru" | "siswa";
+    nip: string | null;
+    alamat: string | null;
     blocked_until: string | null;
+    no_telp: string | null;
+    nisn: string | null;
+    kelas: string | null;
+    konsentrasi_keahlian: string | null;
 }
+
+interface FormState {
+    nama: string;
+    username: string;
+    role: "operator" | "pegawai" | "guru" | "siswa" | "admin";
+    password: string;
+    nip: string;
+    alamat: string;
+    no_telp: string;
+    nisn: string;
+    kelas: string;
+    konsentrasi_keahlian: string;
+}
+
+const EMPTY_FORM: FormState = {
+    nama: "",
+    username: "",
+    role: "pegawai",
+    password: "",
+    nip: "",
+    alamat: "",
+    no_telp: "",
+    nisn: "",
+    kelas: "",
+    konsentrasi_keahlian: "",
+};
 
 export default function ManajemenPengguna() {
     const [users, setUsers] = useState<UserData[]>([]);
     const [loading, setLoading] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [editUser, setEditUser] = useState<UserData | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [filterRole, setFilterRole] = useState("");
-    const [showBanModal, setShowBanModal] = useState(false);
-    const [userToBan, setUserToBan] = useState<UserData | null>(null);
-    const [banUntil, setBanUntil] = useState("");
     const [showPassword, setShowPassword] = useState(false);
-
-    const [formData, setFormData] = useState({
-        nama: "",
-        username: "",
-        email: "",
-        role: "pegawai",
-        password: "",
-        nip: "",
-    });
-
-    const supabase = createClient();
+    const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+    const [formData, setFormData] = useState<FormState>(EMPTY_FORM);
 
     const fetchUsers = async () => {
         setLoading(true);
         try {
-            const { data, error } = await supabase
-                .from('tb_user')
-                .select('id, nama, username, email, role, nip, blocked_until')
-                .order('role')
-                .order('nama');
-
-            if (error) throw error;
-            setUsers(data || []);
+            const result = await getManagedUsersAction();
+            if (!result.success) throw new Error(result.error);
+            setUsers((result.users || []) as UserData[]);
         } catch (error) {
-            console.error('Error fetching users:', error);
+            console.error("Error fetching users:", error);
+            await showError("Gagal", error instanceof Error ? error.message : "Gagal memuat pengguna.");
         } finally {
             setLoading(false);
         }
@@ -74,120 +90,47 @@ export default function ManajemenPengguna() {
         fetchUsers();
     }, []);
 
-    const handleSubmit = async () => {
-        try {
-            if (formData.nip && formData.nip.length !== 18) {
-                await showWarning('Perhatian', 'NIP harus tepat 18 digit.');
-                return;
-            }
+    const selectedRole = (editUser?.role === "admin" ? "admin" : formData.role) as FormState["role"];
+    const isAdminRole = selectedRole === "admin";
+    const isStudentRole = selectedRole === "siswa";
+    const isStaffBorrowerRole = selectedRole === "pegawai" || selectedRole === "guru";
+    const showIdentityPhone = !isAdminRole;
+    const showAddress = !isAdminRole;
+    const showNipField = !isAdminRole && !isStudentRole;
+    const roleOptions = getEditableRoleOptions(editUser?.role ?? null);
+    const modalWidthClass = isStudentRole ? "max-w-2xl" : "max-w-lg";
 
-            if (editUser) {
-                // Update existing user via Server Action
-                const result = await manageUserAction({
-                    action: 'update',
-                    userId: editUser.id,
-                    userData: {
-                        nama: formData.nama,
-                        username: formData.username,
-                        email: formData.email,
-                        role: formData.role,
-                        nip: formData.nip,
-                        password: formData.password || undefined,
-                    },
-                });
+    const filteredUsers = useMemo(() => {
+        return users.filter((user) => {
+            const searchableText = `${user.nama} ${user.username} ${user.no_telp || ""} ${user.nip || ""} ${user.nisn || ""}`.toLowerCase();
+            const matchSearch = searchableText.includes(searchQuery.toLowerCase());
+            const matchRole = !filterRole || user.role === filterRole;
+            return matchSearch && matchRole;
+        });
+    }, [filterRole, searchQuery, users]);
 
-                if (!result.success) throw new Error(result.error);
-            } else {
-                // Create new user via Server Action
-                if (!formData.email) {
-                    await showWarning('Perhatian', 'Email wajib diisi untuk membuat pengguna baru');
-                    return;
-                }
-                const result = await manageUserAction({
-                    action: 'create',
-                    userData: {
-                        nama: formData.nama,
-                        username: formData.username,
-                        email: formData.email,
-                        role: formData.role,
-                        password: formData.password,
-                        nip: formData.nip,
-                    },
-                });
-
-                if (!result.success) throw new Error(result.error);
-            }
-
-            setShowModal(false);
-            setEditUser(null);
-            resetForm();
-            fetchUsers();
-        } catch (error: any) {
-            console.error('Error saving user:', error);
-            await showError('Gagal', error.message || 'Gagal menyimpan pengguna.');
-        }
+    const updateField = <K extends keyof FormState>(field: K, value: FormState[K]) => {
+        setFormData((current) => ({
+            ...current,
+            [field]: value,
+        }));
     };
 
-    const handleDelete = async (user: UserData) => {
-        const confirmed = await showConfirmDanger(`Hapus pengguna "${user.nama}"?`, 'Pengguna ini akan dihapus secara permanen.', 'Ya, Hapus', 'Batal');
-        if (!confirmed) return;
-
-        try {
-            const result = await manageUserAction({
-                action: 'delete',
-                userId: user.id,
-            });
-            if (!result.success) throw new Error(result.error);
-            fetchUsers();
-        } catch (error: any) {
-            console.error('Error deleting user:', error);
-            await showError('Gagal', error.message || 'Gagal menghapus pengguna.');
-        }
+    const resetForm = () => {
+        setFormData(EMPTY_FORM);
+        setShowPassword(false);
     };
 
-    const handleToggleBlock = async (user: UserData) => {
-        const isCurrentlyBlocked = user.blocked_until && new Date(user.blocked_until) > new Date();
-
-        if (isCurrentlyBlocked) {
-            const confirmed = await showConfirm(`Buka blokir pengguna "${user.nama}"?`, 'Pengguna ini akan bisa login kembali.', 'Ya, Buka Blokir', 'Batal');
-            if (!confirmed) return;
-            try {
-                const { error } = await supabase
-                    .from('tb_user')
-                    .update({ blocked_until: null })
-                    .eq('id', user.id);
-                if (error) throw error;
-                fetchUsers();
-            } catch (error: any) {
-                console.error('Error unblocking user:', error);
-                    await showError('Gagal', error.message || 'Gagal membuka blokir.');
-            }
-        } else {
-            setUserToBan(user);
-            setBanUntil(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]); // Default 7 days
-            setShowBanModal(true);
-        }
+    const closeModal = () => {
+        setShowModal(false);
+        setEditUser(null);
+        resetForm();
     };
 
-    const confirmBan = async () => {
-        if (!userToBan || !banUntil) return;
-
-        try {
-            const { error } = await supabase
-                .from('tb_user')
-                .update({
-                    blocked_until: new Date(banUntil).toISOString()
-                })
-                .eq('id', userToBan.id);
-
-            if (error) throw error;
-            setShowBanModal(false);
-            setUserToBan(null);
-            fetchUsers();
-        } catch (error: any) {
-            console.error('Error banning user:', error);
-            await showError('Gagal', error.message || 'Gagal memblokir pengguna.');
-        }
+    const openAddModal = () => {
+        setEditUser(null);
+        resetForm();
+        setShowModal(true);
     };
 
     const handleEdit = (user: UserData) => {
@@ -196,60 +139,176 @@ export default function ManajemenPengguna() {
         setFormData({
             nama: user.nama,
             username: user.username,
-            email: user.email || "",
             role: user.role,
             password: "",
             nip: user.nip || "",
+            alamat: user.alamat || "",
+            no_telp: user.no_telp || "",
+            nisn: user.nisn || "",
+            kelas: user.kelas || "",
+            konsentrasi_keahlian: user.konsentrasi_keahlian || "",
         });
         setShowModal(true);
     };
 
-    const resetForm = () => {
-        setFormData({
-            nama: "",
-            username: "",
-            email: "",
-            role: "pegawai",
-            password: "",
-            nip: "",
-        });
-    };
-
-    const openAddModal = () => {
-        setEditUser(null);
-        resetForm();
-        setShowPassword(false);
-        setShowModal(true);
-    };
-
-    const filteredUsers = users.filter(user => {
-        const matchSearch =
-            user.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            user.username.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchRole = !filterRole || user.role === filterRole;
-        return matchSearch && matchRole;
-    });
-
-    const getRoleBadge = (role: string, blockedUntil: string | null) => {
-        const isBlocked = blockedUntil && new Date(blockedUntil) > new Date();
-        if (isBlocked) {
-            return <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-medium">Terblokir</span>;
+    const handleDelete = async (user: UserData) => {
+        if (!canDeleteManagedUser(user.role)) {
+            await showWarning("Perhatian", "Akun admin tidak bisa dihapus.");
+            return;
         }
 
+        const confirmed = await showConfirmDanger(
+            "Hapus Pengguna?",
+            `Akun ${user.nama} akan dihapus permanen.`,
+            "Ya, Hapus",
+            "Batal",
+        );
+
+        if (!confirmed) return;
+
+        setDeletingUserId(user.id);
+        try {
+            const result = await manageUserAction({
+                action: "delete",
+                userId: user.id,
+            });
+
+            if (!result.success) throw new Error(result.error);
+
+            await showSuccess("Berhasil", "Akun berhasil dihapus.");
+            fetchUsers();
+        } catch (error) {
+            console.error("Error deleting user:", error);
+            await showError("Gagal", error instanceof Error ? error.message : "Gagal menghapus pengguna.");
+        } finally {
+            setDeletingUserId(null);
+        }
+    };
+
+    const validateForm = async () => {
+        if (!formData.nama.trim()) {
+            await showWarning("Perhatian", "Nama wajib diisi.");
+            return false;
+        }
+
+        if (!formData.username.trim()) {
+            await showWarning("Perhatian", "Username wajib diisi.");
+            return false;
+        }
+
+        if (!editUser && !formData.password) {
+            await showWarning("Perhatian", "Password wajib diisi untuk pengguna baru.");
+            return false;
+        }
+
+        if (isStaffBorrowerRole && !formData.nip) {
+            await showWarning("Perhatian", "NIP wajib diisi untuk pegawai dan guru.");
+            return false;
+        }
+
+        if (formData.nip && normalizeDigitsOnly(formData.nip).length !== 18) {
+            await showWarning("Perhatian", "NIP harus tepat 18 digit.");
+            return false;
+        }
+
+        if ((selectedRole === "pegawai" || selectedRole === "guru" || selectedRole === "siswa") && !formData.no_telp) {
+            await showWarning("Perhatian", "Nomor telepon wajib diisi.");
+            return false;
+        }
+
+        if ((selectedRole === "pegawai" || selectedRole === "guru" || selectedRole === "siswa") && !formData.alamat.trim()) {
+            await showWarning("Perhatian", "Alamat wajib diisi.");
+            return false;
+        }
+
+        if (isStudentRole) {
+            if (!formData.nisn) {
+                await showWarning("Perhatian", "NISN wajib diisi untuk siswa.");
+                return false;
+            }
+            if (!formData.kelas.trim()) {
+                await showWarning("Perhatian", "Kelas wajib diisi untuk siswa.");
+                return false;
+            }
+            if (!formData.konsentrasi_keahlian.trim()) {
+                await showWarning("Perhatian", "Konsentrasi keahlian wajib diisi untuk siswa.");
+                return false;
+            }
+        }
+
+        return true;
+    };
+
+    const handleSubmit = async () => {
+        if (!(await validateForm())) return;
+
+        setSubmitting(true);
+        try {
+            const payload = {
+                nama: formData.nama,
+                username: formData.username,
+                role: selectedRole,
+                password: formData.password || undefined,
+                nip: formData.nip,
+                alamat: formData.alamat,
+                no_telp: formData.no_telp,
+                nisn: formData.nisn,
+                kelas: formData.kelas,
+                konsentrasi_keahlian: formData.konsentrasi_keahlian,
+            };
+
+            const result = editUser
+                ? await manageUserAction({
+                    action: "update",
+                    userId: editUser.id,
+                    userData: payload,
+                })
+                : await manageUserAction({
+                    action: "create",
+                    userData: payload,
+                });
+
+            if (!result.success) throw new Error(result.error);
+
+            await showSuccess("Berhasil", editUser ? "Data pengguna berhasil diperbarui." : "Pengguna berhasil ditambahkan.");
+            closeModal();
+            fetchUsers();
+        } catch (error) {
+            console.error("Error saving user:", error);
+            await showError("Gagal", error instanceof Error ? error.message : "Gagal menyimpan pengguna.");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const getRoleBadge = (role: UserData["role"]) => {
         switch (role) {
-            case 'admin':
+            case "admin":
                 return <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">Admin</span>;
-            case 'operator':
+            case "operator":
                 return <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">Operator</span>;
-            case 'pegawai':
+            case "pegawai":
                 return <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">Pegawai</span>;
+            case "guru":
+                return <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm">Guru</span>;
+            case "siswa":
+                return <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm">Siswa</span>;
             default:
-                return <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">{role}</span>;
+                return <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">{getRoleLabel(role)}</span>;
         }
     };
+
+    const getIdentityText = (user: UserData) => {
+        if (user.role === "admin") return "-";
+        if (user.role === "siswa") return user.nisn ? `NISN ${user.nisn}` : "-";
+        return user.nip ? `NIP ${user.nip}` : "-";
+    };
+
+    const submitDisabled = !formData.nama.trim()
+        || !formData.username.trim()
+        || (!editUser && !formData.password);
 
     return (
-
         <div className="flex-1 bg-[#f5f7fb] flex flex-col min-h-screen">
             <main className="flex-1 flex flex-col overflow-auto">
                 <Header title="Manajemen Pengguna" />
@@ -262,13 +321,15 @@ export default function ManajemenPengguna() {
                         <div className="flex gap-3">
                             <select
                                 value={filterRole}
-                                onChange={(e) => setFilterRole(e.target.value)}
+                                onChange={(event) => setFilterRole(event.target.value)}
                                 className="border rounded-xl px-4 py-2 bg-white"
                             >
                                 <option value="">Semua Peran</option>
                                 <option value="admin">Admin</option>
                                 <option value="operator">Operator</option>
                                 <option value="pegawai">Pegawai</option>
+                                <option value="guru">Guru</option>
+                                <option value="siswa">Siswa</option>
                             </select>
                         </div>
 
@@ -279,7 +340,7 @@ export default function ManajemenPengguna() {
                                     className="border rounded-xl pl-10 pr-4 py-2 bg-white"
                                     placeholder="Cari pengguna..."
                                     value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    onChange={(event) => setSearchQuery(event.target.value)}
                                 />
                             </div>
 
@@ -309,7 +370,7 @@ export default function ManajemenPengguna() {
                                     <tr>
                                         <th className="px-6 py-4 text-left">Nama</th>
                                         <th className="px-6 py-4 text-left">Username</th>
-                                        <th className="px-6 py-4 text-left">Email</th>
+                                        <th className="px-6 py-4 text-left">Identitas</th>
                                         <th className="px-6 py-4 text-left">Peran</th>
                                         <th className="px-6 py-4 text-left">Aksi</th>
                                     </tr>
@@ -326,33 +387,34 @@ export default function ManajemenPengguna() {
                                                     <span className="font-medium text-gray-800">{user.nama}</span>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 text-gray-600">{user.username}</td>
-                                            <td className="px-6 py-4 text-gray-600">{user.email || '-'}</td>
-                                            <td className="px-6 py-4">{getRoleBadge(user.role, user.blocked_until)}</td>
+                                            <td className="px-6 py-4 text-gray-600">
+                                                <div>
+                                                    <p className="font-medium text-gray-700">@{user.username}</p>
+                                                    <p className="text-xs text-gray-400">
+                                                        {user.no_telp ? `No. Telp ${user.no_telp}` : "Belum ada nomor telepon"}
+                                                    </p>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-600">{getIdentityText(user)}</td>
+                                            <td className="px-6 py-4">{getRoleBadge(user.role)}</td>
                                             <td className="px-6 py-4">
-                                                <div className="flex gap-2">
-                                                    <button
-                                                        onClick={() => handleToggleBlock(user)}
-                                                        className={`border px-3 py-2 rounded-lg flex items-center gap-1 transition-colors ${user.blocked_until && new Date(user.blocked_until) > new Date()
-                                                                ? 'text-green-600 hover:bg-green-50 border-green-200'
-                                                                : 'text-red-500 hover:bg-red-50 border-red-200'
-                                                            }`}
-                                                        title={user.blocked_until && new Date(user.blocked_until) > new Date() ? "Buka Blokir" : "Blokir Akun"}
-                                                    >
-                                                        {user.blocked_until && new Date(user.blocked_until) > new Date() ? "Unban" : "Ban"}
-                                                    </button>
+                                                <div className="flex items-center gap-2">
                                                     <button
                                                         onClick={() => handleEdit(user)}
                                                         className="border px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50 flex items-center gap-1 transition-colors"
                                                     >
                                                         <Pencil size={14} /> Edit
                                                     </button>
-                                                    <button
-                                                        onClick={() => handleDelete(user)}
-                                                        className="border px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 flex items-center gap-1 transition-colors"
-                                                    >
-                                                        <Trash2 size={14} /> Hapus
-                                                    </button>
+                                                    {canDeleteManagedUser(user.role) && (
+                                                        <button
+                                                            onClick={() => handleDelete(user)}
+                                                            disabled={deletingUserId === user.id}
+                                                            className="border px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 flex items-center gap-1 transition-colors disabled:opacity-50"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                            {deletingUserId === user.id ? "Menghapus..." : "Hapus"}
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>
@@ -370,88 +432,82 @@ export default function ManajemenPengguna() {
                 </div>
             </main>
 
-            {/* Modal */}
             {showModal && (
-                <div className="fixed inset-0 bg-black/30 flex items-center justify-center p-6 z-50">
-                    <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 relative">
-                        <button
-                            onClick={() => {
-                                setShowModal(false);
-                                setEditUser(null);
-                                resetForm();
-                            }}
-                            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-                        >
-                            <X />
-                        </button>
+                <div className="fixed inset-0 z-50 overflow-y-auto bg-black/30">
+                    <div className="flex min-h-full items-start justify-center p-4 sm:items-center sm:p-6">
+                        <div className={`bg-white w-full ${modalWidthClass} max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl shadow-2xl p-5 sm:p-6 relative`}>
+                            <button
+                                onClick={closeModal}
+                                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+                            >
+                                <X />
+                            </button>
 
-                        <h2 className="text-2xl font-semibold mb-6">
-                            {editUser ? 'Edit Pengguna' : 'Tambah Pengguna'}
-                        </h2>
+                            <h2 className="pr-10 text-xl sm:text-2xl font-semibold text-gray-800 mb-5 sm:mb-6">
+                                {editUser ? "Edit Pengguna" : "Tambah Pengguna"}
+                            </h2>
 
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm text-gray-500 mb-1">Nama</label>
-                                <input
-                                    className="w-full border rounded-xl px-4 py-3"
-                                    placeholder="Nama lengkap"
-                                    value={formData.nama}
-                                    onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm text-gray-500 mb-1">Username</label>
-                                <input
-                                    className="w-full border rounded-xl px-4 py-3"
-                                    placeholder="username"
-                                    value={formData.username}
-                                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                                />
-                            </div>
-
+                            <div className="space-y-4">
                             <div>
                                 <label className="block text-sm text-gray-500 mb-1">
-                                    Email {editUser && <span className="text-xs text-gray-400 italic">(Tidak dapat diubah)</span>}
+                                    {isStudentRole ? "Nama Lengkap" : "Nama"}
                                 </label>
                                 <input
-                                    type="email"
-                                    className={`w-full border rounded-xl px-4 py-3 transition-colors ${editUser ? 'bg-gray-50 text-gray-400 cursor-not-allowed border-gray-100' : ''}`}
-                                    placeholder="email@example.com"
-                                    value={formData.email}
-                                    disabled={!!editUser}
-                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    className="w-full border rounded-xl px-4 py-3"
+                                    placeholder={isStudentRole ? "Nama lengkap siswa" : "Nama pengguna"}
+                                    value={formData.nama}
+                                    onChange={(event) => updateField("nama", event.target.value)}
                                 />
                             </div>
 
-                            <div>
-                                <label className="block text-sm text-gray-500 mb-1">Peran</label>
-                                <select
-                                    className="w-full border rounded-xl px-4 py-3"
-                                    value={formData.role}
-                                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                                >
-                                    <option value="admin">Admin</option>
-                                    <option value="operator">Operator</option>
-                                    <option value="pegawai">Pegawai</option>
-                                </select>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-gray-500 mb-1">Username</label>
+                                    <input
+                                        className="w-full border rounded-xl px-4 py-3"
+                                        placeholder="username"
+                                        value={formData.username}
+                                        onChange={(event) => updateField("username", event.target.value.toLowerCase())}
+                                    />
+                                    <p className="text-xs text-gray-400 mt-1">
+                                        Email login internal dibuat otomatis dari username.
+                                    </p>
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-gray-500 mb-1">Peran</label>
+                                    <select
+                                        className={`w-full border rounded-xl px-4 py-3 ${editUser?.role === "admin" ? "bg-gray-50 text-gray-500 cursor-not-allowed" : ""}`}
+                                        value={selectedRole}
+                                        disabled={editUser?.role === "admin"}
+                                        onChange={(event) => updateField("role", event.target.value as FormState["role"])}
+                                    >
+                                        {roleOptions.map((roleOption) => (
+                                            <option key={roleOption} value={roleOption}>
+                                                {getRoleLabel(roleOption)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {editUser?.role === "admin" && (
+                                        <p className="text-xs text-gray-400 mt-1">Role admin dikunci dan tidak bisa diubah.</p>
+                                    )}
+                                </div>
                             </div>
 
                             <div>
                                 <label className="block text-sm text-gray-500 mb-1">
-                                    Kata Sandi {editUser ? '(kosongkan jika tidak diubah)' : ''}
+                                    Kata Sandi {editUser ? "(kosongkan jika tidak diubah)" : ""}
                                 </label>
                                 <div className="relative">
                                     <input
                                         type={showPassword ? "text" : "password"}
                                         className="w-full border rounded-xl px-4 py-3 pr-12"
-                                        placeholder={editUser ? "Kosongkan jika tidak diubah" : "Kata Sandi"}
+                                        placeholder={editUser ? "Kosongkan jika tidak diubah" : "Kata sandi"}
                                         value={formData.password}
-                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                        onChange={(event) => updateField("password", event.target.value)}
                                     />
                                     <button
                                         type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
+                                        onClick={() => setShowPassword((current) => !current)}
                                         className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                                     >
                                         {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
@@ -459,121 +515,124 @@ export default function ManajemenPengguna() {
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="block text-sm text-gray-500 mb-1">NIP</label>
-                                <input
-                                    className="w-full border rounded-xl px-4 py-3"
-                                    placeholder="NIP (opsional)"
-                                    maxLength={18}
-                                    value={formData.nip}
-                                    onChange={(e) => {
-                                        const val = e.target.value.replace(/\D/g, '');
-                                        setFormData({ ...formData, nip: val });
-                                    }}
-                                />
-                                {formData.nip && formData.nip.length > 0 && formData.nip.length < 18 && (
-                                    <p className="text-red-500 text-xs mt-1">NIP harus berisi persis 18 digit angka.</p>
-                                )}
+                            {isStudentRole && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm text-gray-500 mb-1">NISN</label>
+                                        <input
+                                            className="w-full border rounded-xl px-4 py-3"
+                                            placeholder="NISN"
+                                            value={formData.nisn}
+                                            onChange={(event) => updateField("nisn", normalizeDigitsOnly(event.target.value))}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm text-gray-500 mb-1">Kelas</label>
+                                        <input
+                                            className="w-full border rounded-xl px-4 py-3"
+                                            placeholder="Contoh: XII RPL 1"
+                                            value={formData.kelas}
+                                            onChange={(event) => updateField("kelas", event.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {isStudentRole && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm text-gray-500 mb-1">Konsentrasi Keahlian</label>
+                                        <input
+                                            className="w-full border rounded-xl px-4 py-3"
+                                            placeholder="Contoh: Rekayasa Perangkat Lunak"
+                                            value={formData.konsentrasi_keahlian}
+                                            onChange={(event) => updateField("konsentrasi_keahlian", event.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm text-gray-500 mb-1">No Telp</label>
+                                        <input
+                                            className="w-full border rounded-xl px-4 py-3"
+                                            placeholder="Nomor telepon"
+                                            value={formData.no_telp}
+                                            onChange={(event) => updateField("no_telp", normalizeDigitsOnly(event.target.value))}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {!isStudentRole && (showNipField || showIdentityPhone) && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {showNipField && (
+                                        <div>
+                                            <label className="block text-sm text-gray-500 mb-1">NIP</label>
+                                            <input
+                                                className="w-full border rounded-xl px-4 py-3"
+                                                placeholder={isStaffBorrowerRole ? "NIP wajib 18 digit" : "NIP (opsional)"}
+                                                maxLength={18}
+                                                value={formData.nip}
+                                                onChange={(event) => updateField("nip", normalizeDigitsOnly(event.target.value))}
+                                            />
+                                        </div>
+                                    )}
+                                    {showIdentityPhone && (
+                                        <div>
+                                            <label className="block text-sm text-gray-500 mb-1">No Telp</label>
+                                            <input
+                                                className="w-full border rounded-xl px-4 py-3"
+                                                placeholder="Nomor telepon"
+                                                value={formData.no_telp}
+                                                onChange={(event) => updateField("no_telp", normalizeDigitsOnly(event.target.value))}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {!isStudentRole && showAddress && (
+                                <div>
+                                    <label className="block text-sm text-gray-500 mb-1">Alamat</label>
+                                    <textarea
+                                        className="w-full border rounded-xl px-4 py-3 min-h-24 resize-none"
+                                        placeholder="Alamat lengkap"
+                                        value={formData.alamat}
+                                        onChange={(event) => updateField("alamat", event.target.value)}
+                                    />
+                                </div>
+                            )}
+
+                            {isStudentRole && showAddress && (
+                                <div>
+                                    <label className="block text-sm text-gray-500 mb-1">Alamat</label>
+                                    <textarea
+                                        className="w-full border rounded-xl px-4 py-3 min-h-24 resize-none"
+                                        placeholder="Alamat lengkap"
+                                        value={formData.alamat}
+                                        onChange={(event) => updateField("alamat", event.target.value)}
+                                    />
+                                </div>
+                            )}
+
+                            <div className="flex justify-end gap-3 mt-6">
+                                <button
+                                    onClick={closeModal}
+                                    className="px-5 py-2 border rounded-xl hover:bg-gray-50 transition-colors"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    onClick={handleSubmit}
+                                    disabled={submitDisabled || submitting}
+                                    className="px-5 py-2 bg-blue-600 text-white rounded-xl shadow hover:bg-blue-700 transition-colors disabled:opacity-50"
+                                >
+                                    {submitting ? "Menyimpan..." : editUser ? "Simpan Perubahan" : "Tambah Pengguna"}
+                                </button>
                             </div>
                         </div>
-
-                        <div className="flex justify-end gap-3 mt-6">
-                            <button
-                                onClick={() => {
-                                    setShowModal(false);
-                                    setEditUser(null);
-                                    resetForm();
-                                }}
-                                className="px-5 py-2 border rounded-xl hover:bg-gray-50 transition-colors"
-                            >
-                                Batal
-                            </button>
-                            <button
-                                onClick={handleSubmit}
-                                disabled={!formData.nama || !formData.username || !formData.email || (!editUser && !formData.password)}
-                                className="px-5 py-2 bg-blue-600 text-white rounded-xl shadow hover:bg-blue-700 transition-colors disabled:opacity-50"
-                            >
-                                {editUser ? 'Simpan Perubahan' : 'Tambah Pengguna'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Ban Modal */}
-            {showBanModal && userToBan && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-[60] backdrop-blur-sm">
-                    <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl p-8 relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-2 bg-red-500"></div>
-
-                        <h2 className="text-2xl font-bold mb-2 text-gray-800 flex items-center gap-2">
-                            <Ban size={22} className="text-red-500" /> Blokir Akun
-                        </h2>
-                        <p className="text-gray-500 mb-6 text-sm">
-                            Tentukan sampai kapan akun <strong>{userToBan.nama}</strong> akan ditangguhkan.
-                        </p>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">Blokir Sampai Tanggal</label>
-                                <input
-                                    type="date"
-                                    className="w-full border-2 border-gray-100 rounded-2xl px-4 py-3 focus:border-red-500 outline-none transition-all"
-                                    min={new Date().toISOString().split('T')[0]}
-                                    value={banUntil}
-                                    onChange={(e) => setBanUntil(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-2">
-                                <button
-                                    onClick={() => setBanUntil(new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])}
-                                    className="text-xs bg-gray-50 hover:bg-gray-100 py-2 rounded-xl text-gray-600 transition-colors"
-                                >
-                                    1 Hari
-                                </button>
-                                <button
-                                    onClick={() => setBanUntil(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])}
-                                    className="text-xs bg-gray-50 hover:bg-gray-100 py-2 rounded-xl text-gray-600 transition-colors"
-                                >
-                                    1 Minggu
-                                </button>
-                                <button
-                                    onClick={() => setBanUntil(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])}
-                                    className="text-xs bg-gray-50 hover:bg-gray-100 py-2 rounded-xl text-gray-600 transition-colors"
-                                >
-                                    1 Bulan
-                                </button>
-                                <button
-                                    onClick={() => setBanUntil('2099-12-31')}
-                                    className="text-xs bg-red-50 hover:bg-red-100 py-2 rounded-xl text-red-600 font-medium transition-colors"
-                                >
-                                    Permanen
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="flex gap-3 mt-8">
-                            <button
-                                onClick={() => {
-                                    setShowBanModal(false);
-                                    setUserToBan(null);
-                                }}
-                                className="flex-1 py-3 border-2 border-gray-100 rounded-2xl font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
-                            >
-                                Batal
-                            </button>
-                            <button
-                                onClick={confirmBan}
-                                className="flex-1 py-3 bg-red-600 text-white rounded-2xl font-bold shadow-lg shadow-red-200 hover:bg-red-700 active:scale-95 transition-all"
-                            >
-                                Konfirmasi
-                            </button>
                         </div>
                     </div>
                 </div>
             )}
         </div>
-
     );
 }

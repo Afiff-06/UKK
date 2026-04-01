@@ -4,13 +4,12 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Eye, EyeOff, Loader2, Package } from "lucide-react";
+import { getLoginErrorMessage } from "@/lib/user-validation";
+import { normalizeUsername } from "@/lib/user-normalization";
 
-export function LoginForm({
-  className,
-  ...props
-}: React.ComponentPropsWithoutRef<"div">) {
+export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -31,17 +30,34 @@ export function LoginForm({
     setError(null);
 
     try {
-      // Login via Supabase Authentication
+      const normalizedUsername = normalizeUsername(username);
+      const { data: account, error: accountError } = await supabase
+        .from("tb_user")
+        .select("id, email")
+        .ilike("username", normalizedUsername)
+        .maybeSingle();
+
+      if (accountError) {
+        throw new Error("Gagal memuat data akun");
+      }
+
+      if (!account) {
+        throw new Error(getLoginErrorMessage("username_not_found"));
+      }
+
+      if (!account.email) {
+        throw new Error(getLoginErrorMessage("missing_email"));
+      }
+
       const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: email,
+        email: account.email,
         password: password,
       });
 
       if (authError) {
-        throw new Error("Email atau password salah");
+        throw new Error(getLoginErrorMessage("invalid_password"));
       }
 
-      // Fetch role dari tb_user
       const { data: userData, error: userError } = await supabase
         .from('tb_user')
         .select('role')
@@ -51,16 +67,6 @@ export function LoginForm({
       if (userError || !userData) {
         throw new Error("Gagal memuat profil pengguna");
       }
-
-      // Redirect berdasarkan role
-      const role = userData.role;
-      // if (role === 'admin') {
-      //   router.push("/admin/dashboard");
-      // } else if (role === 'operator') {
-      //   router.push("/operator/dashboard");
-      // } else {
-      //   router.push("/pegawai/dashboard");
-      // }
 
       router.refresh()
 
@@ -86,18 +92,18 @@ export function LoginForm({
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <form onSubmit={handleLogin}>
-            {/* Email */}
+            {/* Username */}
             <div className="mb-5">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email
+                Username
               </label>
               <input
-                type="email"
-                id="email"
-                placeholder="Masukkan email"
+                type="text"
+                id="username"
+                placeholder="Masukkan username"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 className="w-full h-12 text-black bg-gray-50 border border-gray-200 rounded-xl px-4 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               />
             </div>
@@ -160,7 +166,7 @@ export function LoginForm({
 
           {/* Help Text */}
           <p className="text-center text-sm text-gray-500">
-            Gunakan email dan password yang terdaftar
+            Gunakan username dan password yang terdaftar
           </p>
         </div>
       </div>

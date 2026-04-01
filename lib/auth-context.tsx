@@ -3,8 +3,7 @@
 import { createContext, useContext, useEffect, useState, useMemo, ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
-
-export type UserRole = 'admin' | 'operator' | 'pegawai' | null;
+import type { UserRole } from '@/lib/roles';
 
 interface UserProfile {
     id: string;
@@ -36,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         let mounted = true;
 
-        const fetchProfile = async (sessionUser: any) => {
+        const fetchProfile = async (sessionUser: { id: string }) => {
             if (!mounted) return;
             try {
                 // Hanya tampilkan loading jika belum ada data user (initial load atau post-logout)
@@ -49,6 +48,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     .select('id, nama, username, role, email, blocked_until')
                     .eq('id', sessionUser.id)
                     .single();
+
+                if (error) throw error;
 
                 if (mounted) {
                     if (data) {

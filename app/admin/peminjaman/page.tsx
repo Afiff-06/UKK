@@ -13,12 +13,27 @@ import {
 
 import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
-import { useAuth } from "@/lib/auth-context";
 import LoadingSpinner from "@/components/loading-spinner";
-import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { getReturnStatus, isPastDueDate } from "@/lib/peminjaman-status";
+import { isPastDueDate } from "@/lib/peminjaman-status";
 import { showSuccess, showError, showConfirm, showInputDialog } from "@/lib/swal";
+import { formatBorrowerIdentity } from "@/lib/roles";
+
+interface RiwayatPeminjamanRow {
+    id_peminjaman: string;
+    tanggal_pinjam: string;
+    tanggal_kembali: string | null;
+    jam_pinjam: string | null;
+    jam_kembali: string | null;
+    status: string;
+    alasan_penolakan: string | null;
+    pegawai?: { nama: string; username: string; role?: string | null }[] | { nama: string; username: string; role?: string | null } | null;
+    detail_peminjaman?: {
+        id: string;
+        jumlah: number;
+        inventaris?: { id_inventaris: string; nama: string; kode_inventaris: number }[] | { id_inventaris: string; nama: string; kode_inventaris: number } | null;
+    }[] | null;
+}
 
 interface RiwayatPeminjaman {
     id_peminjaman: string;
@@ -28,7 +43,7 @@ interface RiwayatPeminjaman {
     jam_kembali: string | null;
     status: string;
     alasan_penolakan: string | null;
-    pegawai?: { nama: string; email: string };
+    pegawai?: { nama: string; username: string; role?: string | null };
     detail_peminjaman: {
         id: string;
         jumlah: number;
@@ -43,7 +58,6 @@ export default function PeminjamanPage() {
     const [processingId, setProcessingId] = useState<string | null>(null);
     const router = useRouter();
 
-    const { role } = useAuth();
     const supabase = createClient();
 
     const isOverdue = (tanggalPinjam: string, tanggalKembali: string | null, status: string, jamKembali?: string | null) => {
@@ -114,7 +128,7 @@ export default function PeminjamanPage() {
                     jam_kembali,
                     status,
                     alasan_penolakan,
-                    pegawai:id_pegawai (nama, email),
+                    pegawai:id_pegawai (nama, username, role),
                     detail_peminjaman (
                         id,
                         jumlah,
@@ -126,21 +140,29 @@ export default function PeminjamanPage() {
 
             if (error) throw error;
 
-            const riwayat = ((data || []) as any[]).map((item) => ({
-                id_peminjaman: item.id_peminjaman,
-                tanggal_pinjam: item.tanggal_pinjam,
-                tanggal_kembali: item.tanggal_kembali,
-                jam_pinjam: item.jam_pinjam,
-                jam_kembali: item.jam_kembali,
-                status: item.status,
-                alasan_penolakan: item.alasan_penolakan,
-                pegawai: Array.isArray(item.pegawai) ? item.pegawai[0] : item.pegawai,
-                detail_peminjaman: (item.detail_peminjaman || []).map((detail: any) => ({
-                    id: detail.id,
-                    jumlah: detail.jumlah,
-                    inventaris: Array.isArray(detail.inventaris) ? detail.inventaris[0] : detail.inventaris,
-                })),
-            }));
+            const riwayat = ((data || []) as RiwayatPeminjamanRow[]).map((item) => {
+                const pegawai = Array.isArray(item.pegawai) ? item.pegawai[0] : item.pegawai;
+
+                return {
+                    id_peminjaman: item.id_peminjaman,
+                    tanggal_pinjam: item.tanggal_pinjam,
+                    tanggal_kembali: item.tanggal_kembali,
+                    jam_pinjam: item.jam_pinjam,
+                    jam_kembali: item.jam_kembali,
+                    status: item.status,
+                    alasan_penolakan: item.alasan_penolakan,
+                    pegawai: pegawai ?? undefined,
+                    detail_peminjaman: (item.detail_peminjaman || []).map((detail) => {
+                        const inventaris = Array.isArray(detail.inventaris) ? detail.inventaris[0] : detail.inventaris;
+
+                        return {
+                            id: detail.id,
+                            jumlah: detail.jumlah,
+                            inventaris: inventaris ?? { id_inventaris: "", nama: "", kode_inventaris: 0 },
+                        };
+                    }),
+                };
+            });
 
             setRiwayatPeminjaman(riwayat);
         } catch (error) {
@@ -185,9 +207,9 @@ export default function PeminjamanPage() {
 
             await showSuccess('Berhasil!', 'Peminjaman berhasil disetujui');
             fetchRiwayatPeminjaman();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error approving borrow:', error);
-            await showError('Gagal', error.message || 'Terjadi kesalahan saat menyetujui peminjaman');
+            await showError('Gagal', error instanceof Error ? error.message : 'Terjadi kesalahan saat menyetujui peminjaman');
         } finally {
             setProcessingId(null);
         }
@@ -217,9 +239,9 @@ export default function PeminjamanPage() {
 
             await showSuccess('Ditolak', 'Peminjaman berhasil ditolak');
             fetchRiwayatPeminjaman();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error rejecting borrow:', error);
-            await showError('Gagal', error.message || 'Terjadi kesalahan saat menolak peminjaman');
+            await showError('Gagal', error instanceof Error ? error.message : 'Terjadi kesalahan saat menolak peminjaman');
         } finally {
             setProcessingId(null);
         }
@@ -360,7 +382,7 @@ export default function PeminjamanPage() {
                                                             </div>
                                                             <div>
                                                                 <p className="font-medium text-sm">{item.pegawai?.nama || "-"}</p>
-                                                                <p className="text-xs text-gray-400">{item.pegawai?.email}</p>
+                                                                <p className="text-xs text-gray-400">{formatBorrowerIdentity(item.pegawai ?? {}) || "-"}</p>
                                                             </div>
                                                         </div>
                                                     </td>

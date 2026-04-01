@@ -6,6 +6,7 @@ import {
     Clock,
     AlertTriangle,
     CheckCircle2,
+    RotateCcw,
     Search,
     Plus,
     XCircle,
@@ -13,12 +14,27 @@ import {
 
 import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
-import { useAuth } from "@/lib/auth-context";
 import LoadingSpinner from "@/components/loading-spinner";
-import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { getReturnStatus, isPastDueDate } from "@/lib/peminjaman-status";
+import { isPastDueDate } from "@/lib/peminjaman-status";
 import { showSuccess, showError, showConfirm, showInputDialog } from "@/lib/swal";
+import { formatBorrowerIdentity } from "@/lib/roles";
+
+interface RiwayatPeminjamanRow {
+    id_peminjaman: string;
+    tanggal_pinjam: string;
+    tanggal_kembali: string | null;
+    jam_pinjam: string | null;
+    jam_kembali: string | null;
+    status: string;
+    alasan_penolakan: string | null;
+    pegawai?: { nama: string; username: string; role?: string | null }[] | { nama: string; username: string; role?: string | null } | null;
+    detail_peminjaman?: {
+        id: string;
+        jumlah: number;
+        inventaris?: { id_inventaris: string; nama: string; kode_inventaris: number }[] | { id_inventaris: string; nama: string; kode_inventaris: number } | null;
+    }[] | null;
+}
 
 interface RiwayatPeminjaman {
     id_peminjaman: string;
@@ -28,7 +44,7 @@ interface RiwayatPeminjaman {
     jam_kembali: string | null;
     status: string;
     alasan_penolakan: string | null;
-    pegawai?: { nama: string; email: string };
+    pegawai?: { nama: string; username: string; role?: string | null };
     detail_peminjaman: {
         id: string;
         jumlah: number;
@@ -43,7 +59,6 @@ export default function Peminjaman() {
     const [processingId, setProcessingId] = useState<string | null>(null);
     const router = useRouter()
 
-    const { role, profile } = useAuth();
     const supabase = createClient();
 
     const isOverdue = (tanggalPinjam: string, tanggalKembali: string | null, status: string, jamKembali?: string | null) => {
@@ -113,7 +128,7 @@ export default function Peminjaman() {
                     jam_kembali,
                     status,
                     alasan_penolakan,
-                    pegawai:id_pegawai (nama, email),
+                    pegawai:id_pegawai (nama, username, role),
                     detail_peminjaman (
                         id,
                         jumlah,
@@ -125,74 +140,35 @@ export default function Peminjaman() {
 
             if (error) throw error;
 
-            const riwayat = ((data || []) as any[]).map((item) => ({
-                id_peminjaman: item.id_peminjaman,
-                tanggal_pinjam: item.tanggal_pinjam,
-                tanggal_kembali: item.tanggal_kembali,
-                jam_pinjam: item.jam_pinjam,
-                jam_kembali: item.jam_kembali,
-                status: item.status,
-                alasan_penolakan: item.alasan_penolakan,
-                pegawai: Array.isArray(item.pegawai) ? item.pegawai[0] : item.pegawai,
-                detail_peminjaman: (item.detail_peminjaman || []).map((detail: any) => ({
-                    id: detail.id,
-                    jumlah: detail.jumlah,
-                    inventaris: Array.isArray(detail.inventaris) ? detail.inventaris[0] : detail.inventaris,
-                })),
-            }));
+            const riwayat = ((data || []) as RiwayatPeminjamanRow[]).map((item) => {
+                const pegawai = Array.isArray(item.pegawai) ? item.pegawai[0] : item.pegawai;
+
+                return {
+                    id_peminjaman: item.id_peminjaman,
+                    tanggal_pinjam: item.tanggal_pinjam,
+                    tanggal_kembali: item.tanggal_kembali,
+                    jam_pinjam: item.jam_pinjam,
+                    jam_kembali: item.jam_kembali,
+                    status: item.status,
+                    alasan_penolakan: item.alasan_penolakan,
+                    pegawai: pegawai ?? undefined,
+                    detail_peminjaman: (item.detail_peminjaman || []).map((detail) => {
+                        const inventaris = Array.isArray(detail.inventaris) ? detail.inventaris[0] : detail.inventaris;
+
+                        return {
+                            id: detail.id,
+                            jumlah: detail.jumlah,
+                            inventaris: inventaris ?? { id_inventaris: "", nama: "", kode_inventaris: 0 },
+                        };
+                    }),
+                };
+            });
 
             setRiwayatPeminjaman(riwayat);
         } catch (error) {
             console.error("Error fetching riwayat peminjaman:", error);
         }
     }, [supabase]);
-
-    const handleApproveReturn = async (id: string) => {
-        const confirmed = await showConfirm('Konfirmasi Pengembalian?', 'Barang ini telah dikembalikan?', 'Ya, Konfirmasi', 'Batal');
-        if (!confirmed) return;
-
-        setProcessingId(id);
-        try {
-            const pinjaman = riwayatPeminjaman.find(p => p.id_peminjaman === id);
-            if (!pinjaman) return;
-            const returnStatus = getReturnStatus(pinjaman.tanggal_pinjam, pinjaman.tanggal_kembali);
-
-            // 1. Update each item's stock
-            for (const detail of pinjaman.detail_peminjaman) {
-                const { data: inv } = await supabase
-                    .from('inventaris')
-                    .select('jumlah')
-                    .eq('id_inventaris', detail.inventaris.id_inventaris)
-                    .single();
-
-                if (inv) {
-                    await supabase
-                        .from('inventaris')
-                        .update({ jumlah: inv.jumlah + detail.jumlah })
-                        .eq('id_inventaris', detail.inventaris.id_inventaris);
-                }
-            }
-
-            // 2. Update status and return date
-            const { error } = await supabase
-                .from('peminjaman')
-                .update({
-                    status: returnStatus,
-                    tanggal_kembali: new Date().toISOString().split('T')[0]
-                })
-                .eq('id_peminjaman', id);
-
-            if (error) throw error;
-
-            await showSuccess('Berhasil!', 'Pengembalian berhasil disetujui');
-            fetchRiwayatPeminjaman();
-        } catch (error) {
-            console.error('Error approving return:', error);
-            await showError('Gagal', 'Gagal menyetujui pengembalian');
-        } finally {
-            setProcessingId(null);
-        }
-    };
 
     const handleApproveBorrow = async (id: string) => {
         const confirmed = await showConfirm('Setujui Peminjaman?', 'Peminjaman ini akan disetujui dan stok barang akan dikurangi.', 'Ya, Setujui', 'Batal');
@@ -231,9 +207,9 @@ export default function Peminjaman() {
 
             await showSuccess('Berhasil!', 'Peminjaman berhasil disetujui');
             fetchRiwayatPeminjaman();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error approving borrow:', error);
-            await showError('Gagal', error.message || 'Terjadi kesalahan saat menyetujui peminjaman');
+            await showError('Gagal', error instanceof Error ? error.message : 'Terjadi kesalahan saat menyetujui peminjaman');
         } finally {
             setProcessingId(null);
         }
@@ -263,9 +239,9 @@ export default function Peminjaman() {
 
             await showSuccess('Ditolak', 'Peminjaman berhasil ditolak');
             fetchRiwayatPeminjaman();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error rejecting borrow:', error);
-            await showError('Gagal', error.message || 'Terjadi kesalahan saat menolak peminjaman');
+            await showError('Gagal', error instanceof Error ? error.message : 'Terjadi kesalahan saat menolak peminjaman');
         } finally {
             setProcessingId(null);
         }
@@ -407,7 +383,7 @@ export default function Peminjaman() {
                                                             </div>
                                                             <div>
                                                                 <p className="font-medium text-sm">{item.pegawai?.nama || "-"}</p>
-                                                                <p className="text-xs text-gray-400">{item.pegawai?.email}</p>
+                                                                <p className="text-xs text-gray-400">{formatBorrowerIdentity(item.pegawai ?? {}) || "-"}</p>
                                                             </div>
                                                         </div>
                                                     </td>
@@ -449,12 +425,11 @@ export default function Peminjaman() {
                                                     <td className="px-6 py-4 text-center">
                                                         {item.status === 'konfirmasi_pengembalian' && (
                                                             <button
-                                                                onClick={() => handleApproveReturn(item.id_peminjaman)}
-                                                                disabled={!!processingId}
-                                                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-md shadow-green-100 flex items-center gap-2 mx-auto"
+                                                                onClick={() => router.push("/operator/pengembalian")}
+                                                                className="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-md shadow-slate-100 flex items-center gap-2 mx-auto"
                                                             >
-                                                                {processingId === item.id_peminjaman ? <LoadingSpinner size="sm" /> : <CheckCircle2 size={16} />}
-                                                                Terima Kembali
+                                                                <RotateCcw size={16} />
+                                                                Buka Pengembalian
                                                             </button>
                                                         )}
                                                         {item.status === 'konfirmasi_peminjaman' && (

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
+import Script from "next/script";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
@@ -28,6 +29,13 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.className} antialiased`}>
+        {process.env.NODE_ENV === "development" ? (
+          <Script
+            src="//unpkg.com/react-grab/dist/index.global.js"
+            crossOrigin="anonymous"
+            strategy="beforeInteractive"
+          />
+        ) : null}
         <ThemeProvider
           attribute="class"
           defaultTheme="light"

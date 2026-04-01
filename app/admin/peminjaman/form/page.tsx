@@ -21,6 +21,7 @@ import LoadingSpinner from "@/components/loading-spinner";
 import { useRouter } from "next/navigation";
 import TimePicker from "@/components/time-picker";
 import { showSuccess, showError, showWarning } from "@/lib/swal";
+import { BORROWER_ROLES, getRoleLabel, isBorrowerRole } from "@/lib/roles";
 
 interface Inventaris {
     id_inventaris: string;
@@ -32,7 +33,8 @@ interface Inventaris {
 interface User {
     id: string;
     nama: string;
-    email: string;
+    username: string;
+    role: string;
 }
 
 interface SelectedItem {
@@ -70,6 +72,7 @@ export default function PeminjamanForm() {
     const supabase = createClient();
     const router = useRouter();
     const todayDate = formatDateInput(new Date());
+    const borrowerMode = isBorrowerRole(role);
 
     // Initialize date on client side to avoid Next.js 16 prerender issues
     useEffect(() => {
@@ -95,21 +98,21 @@ export default function PeminjamanForm() {
                     .gt('jumlah', 0)
                     .order('nama');
 
-                // Fetch users (pegawai) from tb_user
+                // Fetch borrower users from tb_user
                 const { data: usrData } = await supabase
                     .from('tb_user')
-                    .select('id, nama, email')
-                    .eq('role', 'pegawai');
+                    .select('id, nama, username, role')
+                    .in('role', [...BORROWER_ROLES]);
 
                 if (invData) setInventaris(invData);
                 if (usrData) setUsers(usrData);
 
-                // If pegawai, auto-select themselves
-                if (role === 'pegawai' && profile) {
+                if (borrowerMode && profile) {
                     setSelectedPegawai({
                         id: profile.id,
                         nama: profile.nama,
-                        email: profile.email || '',
+                        username: profile.username,
+                        role: role || "pegawai",
                     });
                 }
             } catch (error) {
@@ -120,7 +123,7 @@ export default function PeminjamanForm() {
         };
 
         fetchData();
-    }, [role, profile, supabase]);
+    }, [borrowerMode, profile, role, supabase]);
 
     const updateQty = (id: string, delta: number) => {
         setItems((prev) =>
@@ -152,7 +155,7 @@ export default function PeminjamanForm() {
 
     const handleSubmit = async () => {
         if (!selectedPegawai || items.length === 0) {
-            await showWarning('Perhatian', 'Pilih pegawai dan tambahkan barang terlebih dahulu');
+            await showWarning('Perhatian', 'Pilih peminjam dan tambahkan barang terlebih dahulu');
             return;
         }
 
@@ -173,7 +176,7 @@ export default function PeminjamanForm() {
                     tanggal_kembali: tanggalKembali,
                     jam_pinjam: jamPinjam,
                     jam_kembali: jamKembali,
-                    status: role === 'pegawai' ? 'pending' : 'dipinjam',
+                    status: borrowerMode ? 'pending' : 'dipinjam',
                 })
                 .select()
                 .single();
@@ -194,7 +197,7 @@ export default function PeminjamanForm() {
             if (detailError) throw detailError;
 
             // Update stock if approved
-            if (role !== 'pegawai') {
+            if (!borrowerMode) {
                 for (const item of items) {
                     const { error: stockError } = await supabase
                         .from('inventaris')
@@ -223,7 +226,7 @@ export default function PeminjamanForm() {
 
     const filteredUsers = users.filter(usr =>
         usr.nama.toLowerCase().includes(searchPegawai.toLowerCase()) ||
-        usr.email.toLowerCase().includes(searchPegawai.toLowerCase())
+        usr.username.toLowerCase().includes(searchPegawai.toLowerCase())
     );
 
     if (loading) {
@@ -241,19 +244,19 @@ export default function PeminjamanForm() {
 
                 <div className="p-8">
                     <h1 className="text-3xl font-bold mb-2 text-gray-800">
-                        {role === 'pegawai' ? 'Ajukan Peminjaman' : 'Form Peminjaman Barang'}
+                        {borrowerMode ? 'Ajukan Peminjaman' : 'Form Peminjaman Barang'}
                     </h1>
                     <p className="text-gray-500 mb-6">
-                        {role === 'pegawai'
+                        {borrowerMode
                             ? 'Ajukan peminjaman barang ke operator'
-                            : 'Proses peminjaman barang untuk pegawai'
+                            : 'Proses peminjaman barang untuk peminjam'
                         }
                     </p>
 
                     <div className="bg-white rounded-3xl shadow-lg p-8 space-y-8 max-w-4xl">
-                        {/* PILIH PEGAWAI */}
-                        {role !== 'pegawai' && (
-                            <Section title="Pilih Pegawai" icon={<User size={16} />}>
+                        {/* PILIH PEMINJAM */}
+                        {!borrowerMode && (
+                            <Section title="Pilih Peminjam" icon={<User size={16} />}>
                                 <div
                                     onClick={() => setShowPegawaiSelector(!showPegawaiSelector)}
                                     className="border rounded-xl px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
@@ -265,11 +268,11 @@ export default function PeminjamanForm() {
                                             </div>
                                             <div>
                                                 <p className="font-medium text-gray-800">{selectedPegawai.nama}</p>
-                                                <p className="text-sm text-gray-400">{selectedPegawai.email}</p>
+                                                <p className="text-sm text-gray-400">{getRoleLabel(selectedPegawai.role)} • @{selectedPegawai.username}</p>
                                             </div>
                                         </div>
                                     ) : (
-                                        <span className="text-gray-400">Pilih pegawai...</span>
+                                        <span className="text-gray-400">Pilih pengguna...</span>
                                     )}
                                     <ChevronDown className="text-gray-400" />
                                 </div>
@@ -281,7 +284,7 @@ export default function PeminjamanForm() {
                                                 <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
                                                 <input
                                                     className="w-full pl-9 pr-4 py-2 border rounded-lg text-sm"
-                                                    placeholder="Cari pegawai..."
+                                                    placeholder="Cari nama atau username..."
                                                     value={searchPegawai}
                                                     onChange={(e) => setSearchPegawai(e.target.value)}
                                                     autoFocus
@@ -304,7 +307,7 @@ export default function PeminjamanForm() {
                                                     </div>
                                                     <div>
                                                         <p className="font-medium text-sm">{user.nama}</p>
-                                                        <p className="text-xs text-gray-400">{user.email}</p>
+                                                        <p className="text-xs text-gray-400">{getRoleLabel(user.role)} • @{user.username}</p>
                                                     </div>
                                                 </div>
                                             ))}
@@ -443,9 +446,9 @@ export default function PeminjamanForm() {
 
                         <div className="flex justify-end gap-3 pt-4">
                             <button onClick={() => router.push('/admin/peminjaman')} className="px-6 py-2 border rounded-xl hover:bg-gray-50">Batal</button>
-                            <button onClick={handleSubmit} disabled={submitting || items.length === 0} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow transition-colors flex items-center gap-2">
+                            <button onClick={handleSubmit} disabled={submitting || items.length === 0 || (!selectedPegawai && !borrowerMode)} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow transition-colors flex items-center gap-2">
                                 {submitting ? <LoadingSpinner size="sm" /> : <Check size={18} />}
-                                Proses Peminjaman
+                                {borrowerMode ? 'Ajukan Peminjaman' : 'Proses Peminjaman'}
                             </button>
                         </div>
                     </div>
