@@ -12,6 +12,12 @@ interface UserProfile {
     role: UserRole;
     email?: string;
     blocked_until: string | null;
+    nip?: string | null;
+    no_telp?: string | null;
+    alamat?: string | null;
+    nisn?: string | null;
+    kelas?: string | null;
+    konsentrasi_keahlian?: string | null;
 }
 
 interface AuthContextType {
@@ -45,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                 const { data, error } = await supabase
                     .from('tb_user')
-                    .select('id, nama, username, role, email, blocked_until')
+                    .select('id, nama, username, role, email, blocked_until, nip, no_telp, alamat, nisn, kelas, konsentrasi_keahlian')
                     .eq('id', sessionUser.id)
                     .single();
 
@@ -62,13 +68,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                             return;
                         }
 
-                        const newUser = { 
+                        const newUser: UserProfile = { 
                             id: data.id, 
                             nama: data.nama, 
                             username: data.username, 
-                            role: data.role, 
+                            role: data.role as UserRole, 
                             email: data.email,
-                            blocked_until: data.blocked_until
+                            blocked_until: data.blocked_until,
+                            nip: data.nip,
+                            no_telp: data.no_telp,
+                            alamat: data.alamat,
+                            nisn: data.nisn,
+                            kelas: data.kelas,
+                            konsentrasi_keahlian: data.konsentrasi_keahlian
                         };
                         setUser(newUser);
                         setRole(data.role);

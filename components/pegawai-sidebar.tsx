@@ -6,7 +6,8 @@ import {
     LayoutDashboard,
     ClipboardList,
     RotateCcw,
-    Package
+    Package,
+    User
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
@@ -17,6 +18,7 @@ const pegawaiMenu = [
     { icon: <LayoutDashboard size={20} />, label: "Beranda", path: "/pegawai/dashboard" },
     { icon: <ClipboardList size={20} />, label: "Peminjaman", path: "/pegawai/peminjaman" },
     { icon: <RotateCcw size={20} />, label: "Pengembalian", path: "/pegawai/pengembalian" },
+    { icon: <User size={20} />, label: "Profil Saya", path: "/pegawai/profil" },
 ];
 
 export default function PegawaiSidebar({ children }: { children: React.ReactNode }) {
