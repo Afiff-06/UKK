@@ -1,0 +1,189 @@
+"use client";
+
+import { Package, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import LoadingSpinner from "@/components/loading-spinner";
+
+export interface InventarisTableItem {
+    id_inventaris: string;
+    kode_inventaris: number;
+    nama: string;
+    jumlah: number;
+    kondisi: string;
+    keterangan?: string | null;
+    jenis?: { nama_jenis?: string | null } | null;
+    ruang?: { nama_ruang?: string | null } | null;
+}
+
+interface InventarisTableProps {
+    items: InventarisTableItem[];
+    loading: boolean;
+    searchQuery: string;
+    onSearchChange: (value: string) => void;
+    filterKondisi: string;
+    onFilterKondisiChange: (value: string) => void;
+    mode: "manage" | "readOnly";
+    onAdd?: () => void;
+    onEdit?: (item: InventarisTableItem) => void;
+    onDelete?: (id: string) => void;
+}
+
+const getKondisiBadge = (kondisi: string) => {
+    const colors: Record<string, string> = {
+        Baik: "bg-green-100 text-green-700",
+        "Rusak Ringan": "bg-yellow-100 text-yellow-700",
+        "Rusak Berat": "bg-red-100 text-red-700",
+    };
+
+    return colors[kondisi] || "bg-gray-100 text-gray-700";
+};
+
+export default function InventarisTable({
+    items,
+    loading,
+    searchQuery,
+    onSearchChange,
+    filterKondisi,
+    onFilterKondisiChange,
+    mode,
+    onAdd,
+    onEdit,
+    onDelete,
+}: InventarisTableProps) {
+    const filteredItems = items.filter((item) => {
+        const matchSearch = item.nama.toLowerCase().includes(searchQuery.toLowerCase())
+            || item.kode_inventaris.toString().includes(searchQuery);
+        const matchKondisi = !filterKondisi || item.kondisi === filterKondisi;
+        return matchSearch && matchKondisi;
+    });
+
+    return (
+        <>
+            <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
+                <div className="flex gap-3">
+                    <select
+                        value={filterKondisi}
+                        onChange={(event) => onFilterKondisiChange(event.target.value)}
+                        className="border rounded-xl px-4 py-2 bg-white"
+                    >
+                        <option value="">Semua Kondisi</option>
+                        <option value="Baik">Baik</option>
+                        <option value="Rusak Ringan">Rusak Ringan</option>
+                        <option value="Rusak Berat">Rusak Berat</option>
+                    </select>
+                </div>
+
+                <div className="flex gap-3 items-center">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+                        <input
+                            className="border rounded-xl pl-10 pr-4 py-2 w-64 bg-white"
+                            placeholder="Cari barang..."
+                            value={searchQuery}
+                            onChange={(event) => onSearchChange(event.target.value)}
+                        />
+                    </div>
+
+                    {mode === "manage" && onAdd && (
+                        <button
+                            onClick={onAdd}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl flex items-center gap-2 shadow transition-colors"
+                        >
+                            <Plus size={18} />
+                            Tambah Barang
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            <div className="bg-white rounded-3xl shadow-lg overflow-hidden">
+                {loading ? (
+                    <div className="p-12">
+                        <LoadingSpinner />
+                    </div>
+                ) : filteredItems.length === 0 ? (
+                    <div className="p-12 text-center">
+                        <Package className="mx-auto text-gray-300 mb-4" size={48} />
+                        <p className="text-gray-500">Tidak ada data barang</p>
+                    </div>
+                ) : (
+                    <table className="w-full">
+                        <thead className="bg-gray-50 text-gray-500 text-sm">
+                            <tr>
+                                <th className="px-6 py-4 text-left">Kode</th>
+                                <th className="px-6 py-4 text-left">Nama Barang</th>
+                                <th className="px-6 py-4 text-left">Jenis</th>
+                                <th className="px-6 py-4 text-left">Ruang</th>
+                                <th className="px-6 py-4 text-center">Stok</th>
+                                <th className="px-6 py-4 text-left">Kondisi</th>
+                                {mode === "manage" && <th className="px-6 py-4 text-left">Aksi</th>}
+                            </tr>
+                        </thead>
+
+                        <tbody className="divide-y">
+                            {filteredItems.map((item) => (
+                                <tr key={item.id_inventaris} className="hover:bg-gray-50">
+                                    <td className="px-6 py-4 font-mono text-sm">
+                                        INV-{String(item.kode_inventaris).padStart(4, "0")}
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                                <Package className="text-blue-600" size={18} />
+                                            </div>
+                                            <div>
+                                                <p className="font-medium text-gray-800">{item.nama}</p>
+                                                {item.keterangan && (
+                                                    <p className="text-sm text-gray-400">{item.keterangan}</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-gray-600">
+                                        {item.jenis?.nama_jenis || "-"}
+                                    </td>
+                                    <td className="px-6 py-4 text-gray-600">
+                                        {item.ruang?.nama_ruang || "-"}
+                                    </td>
+                                    <td className="px-6 py-4 text-center">
+                                        <span className={`font-semibold ${item.jumlah <= 5 ? "text-red-600" : "text-gray-800"}`}>
+                                            {item.jumlah}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <span className={`px-3 py-1 rounded-full text-sm ${getKondisiBadge(item.kondisi)}`}>
+                                            {item.kondisi}
+                                        </span>
+                                    </td>
+                                    {mode === "manage" && (
+                                        <td className="px-6 py-4">
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => onEdit?.(item)}
+                                                    className="border px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+                                                >
+                                                    <Pencil size={14} />
+                                                </button>
+                                                <button
+                                                    onClick={() => onDelete?.(item.id_inventaris)}
+                                                    className="border px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    )}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
+
+                {!loading && filteredItems.length > 0 && (
+                    <div className="flex justify-between items-center p-6 text-sm text-gray-500 border-t">
+                        <span>Menampilkan {filteredItems.length} dari {items.length} barang</span>
+                    </div>
+                )}
+            </div>
+        </>
+    );
+}

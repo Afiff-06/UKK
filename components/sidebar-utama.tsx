@@ -8,13 +8,13 @@ import {
     BookOpen,
     RotateCcw,
     FileText,
-    LogOut,
     Package,
     ClipboardList
 } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useAuth, UserRole } from "@/lib/auth-context";
+import { useAuth } from "@/lib/auth-context";
 import { FullPageLoader } from "./loading-spinner";
+import { getRoleLabel, isBorrowerRole } from "@/lib/roles";
 
 interface MenuItem {
     icon: React.ReactElement;
@@ -26,6 +26,7 @@ const menuConfig: Record<string, MenuItem[]> = {
     admin: [
         { icon: <LayoutDashboard />, label: "Beranda", path: "/admin/dashboard" },
         { icon: <Users />, label: "Manajemen Pengguna", path: "/admin/pengguna" },
+        { icon: <Package />, label: "Inventaris Barang", path: "/admin/inventaris" },
         { icon: <BookOpen />, label: "Peminjaman", path: "/admin/peminjaman" },
         { icon: <RotateCcw />, label: "Pengembalian", path: "/admin/pengembalian" },
         { icon: <FileText />, label: "Laporan", path: "/laporan" },
@@ -41,28 +42,30 @@ const menuConfig: Record<string, MenuItem[]> = {
         { icon: <ClipboardList />, label: "Peminjaman", path: "/peminjaman" },
         { icon: <RotateCcw />, label: "Pengembalian", path: "/pengembalian" },
     ],
+    guru: [
+        { icon: <LayoutDashboard />, label: "Beranda", path: "/dashboard" },
+        { icon: <ClipboardList />, label: "Peminjaman", path: "/peminjaman" },
+        { icon: <RotateCcw />, label: "Pengembalian", path: "/pengembalian" },
+    ],
+    siswa: [
+        { icon: <LayoutDashboard />, label: "Beranda", path: "/dashboard" },
+        { icon: <ClipboardList />, label: "Peminjaman", path: "/peminjaman" },
+        { icon: <RotateCcw />, label: "Pengembalian", path: "/pengembalian" },
+    ],
 };
 
 export default function SidebarUtama({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
-    const { role, logout, loading } = useAuth();
+    const { role, loading } = useAuth();
 
     if (loading) {
         return <FullPageLoader />;
     }
 
     // Get menu items based on role, default to pegawai if role not found
-    const menuItems = menuConfig[role || 'pegawai'] || menuConfig.pegawai;
-
-    const getRoleLabel = (role: UserRole) => {
-        switch (role) {
-            case 'admin': return 'Administrator';
-            case 'operator': return 'Operator';
-            case 'pegawai': return 'Pegawai';
-            default: return 'User';
-        }
-    };
+    const effectiveRole = role && isBorrowerRole(role) ? role : role || 'pegawai';
+    const menuItems = menuConfig[effectiveRole] || menuConfig.pegawai;
 
     return (
         <div className="min-h-screen bg-[#f5f7fb] flex w-full">

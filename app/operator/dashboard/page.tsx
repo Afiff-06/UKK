@@ -13,12 +13,39 @@ import { useAuth } from "@/lib/auth-context";
 import LoadingSpinner from "@/components/loading-spinner";
 import { useRouter } from "next/navigation";
 import { isPastDueDate } from "@/lib/peminjaman-status";
+import { formatBorrowerIdentity } from "@/lib/roles";
+
+interface RecentPeminjamanItem {
+    id_peminjaman: string;
+    tanggal_pinjam: string;
+    tanggal_kembali: string | null;
+    status: string;
+    pegawai?: {
+        nama?: string | null;
+        username?: string | null;
+        role?: string | null;
+    } | null;
+    detail_peminjaman?: {
+        jumlah: number;
+        inventaris?: { nama?: string | null } | { nama?: string | null }[] | null;
+    }[] | null;
+}
 
 interface DashboardStats {
     totalBarang: number;
     totalDipinjam: number;
     totalTerlambat: number;
-    recentPeminjaman: any[];
+    recentPeminjaman: RecentPeminjamanItem[];
+}
+
+function getInventarisName(
+    inventaris?: { nama?: string | null } | { nama?: string | null }[] | null,
+) {
+    if (Array.isArray(inventaris)) {
+        return inventaris[0]?.nama ?? "";
+    }
+
+    return inventaris?.nama ?? "";
 }
 
 export default function OperatorDashboard() {
@@ -46,7 +73,7 @@ export default function OperatorDashboard() {
                     .from('peminjaman')
                     .select(`
                         *,
-                        pegawai:id_pegawai (nama, email),
+                        pegawai:id_pegawai (nama, username, role),
                         detail_peminjaman (
                             jumlah,
                             inventaris:id_inventaris (nama)
@@ -54,7 +81,8 @@ export default function OperatorDashboard() {
                     `)
                     .order('created_at', { ascending: false });
 
-                const dipinjam = peminjaman?.filter(p => p.status === 'dipinjam' || p.status === 'pending') || [];
+                const riwayatPeminjaman = (peminjaman || []) as RecentPeminjamanItem[];
+                const dipinjam = riwayatPeminjaman.filter(p => p.status === 'dipinjam' || p.status === 'pending');
                 const terlambat = dipinjam.filter((p) =>
                     isPastDueDate(p.tanggal_pinjam, p.tanggal_kembali)
                 );
@@ -63,7 +91,7 @@ export default function OperatorDashboard() {
                     totalBarang: inventarisCount || 0,
                     totalDipinjam: dipinjam.length,
                     totalTerlambat: terlambat.length,
-                    recentPeminjaman: peminjaman?.slice(0, 5) || [],
+                    recentPeminjaman: riwayatPeminjaman.slice(0, 5),
                 });
             } catch (error) {
                 console.error('Error fetching stats:', error);
@@ -129,7 +157,7 @@ export default function OperatorDashboard() {
                                 <StatCard
                                     icon={<TrendingUp />}
                                     title="Peminjaman Hari Ini"
-                                    value={stats.recentPeminjaman.filter(p => p.tanggal_pinjam === new Date().toISOString().split('T')[0]).length.toString()}
+                                    value={stats.recentPeminjaman.filter((p) => p.tanggal_pinjam === new Date().toISOString().split('T')[0]).length.toString()}
                                     color="green"
                                 />
                                 <StatCard
@@ -178,13 +206,18 @@ export default function OperatorDashboard() {
                                                                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-sm font-medium">
                                                                     {item.pegawai?.nama?.charAt(0) || '?'}
                                                                 </div>
-                                                                <span className="font-medium text-gray-800">
-                                                                    {item.pegawai?.nama || 'Unknown'}
-                                                                </span>
+                                                                <div>
+                                                                    <p className="font-medium text-gray-800">
+                                                                        {item.pegawai?.nama || 'Unknown'}
+                                                                    </p>
+                                                                    <p className="text-xs text-gray-400">
+                                                                        {formatBorrowerIdentity(item.pegawai || {}) || '-'}
+                                                                    </p>
+                                                                </div>
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4 text-gray-700">
-                                                            {item.detail_peminjaman?.map((d: any) => d.inventaris?.nama).join(', ') || '-'}
+                                                            {item.detail_peminjaman?.map((d) => getInventarisName(d.inventaris)).filter(Boolean).join(', ') || '-'}
                                                         </td>
                                                         <td className="px-6 py-4 text-gray-700">
                                                             {new Date(item.tanggal_pinjam).toLocaleDateString('id-ID', {

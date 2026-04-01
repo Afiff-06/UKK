@@ -1,371 +1,589 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
-    Search,
-    RotateCcw,
-    CheckCircle,
-    Clock,
-    Package,
-    AlertTriangle,
+  Search,
+  RotateCcw,
+  CheckCircle,
+  Clock,
+  AlertTriangle,
 } from "lucide-react";
 
 import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import LoadingSpinner from "@/components/loading-spinner";
-import { getReturnStatus, isPastDueDate } from "@/lib/peminjaman-status";
-import { showSuccess, showError, showConfirm, showInfo } from "@/lib/swal";
+import { isPastDueDate } from "@/lib/peminjaman-status";
+import { showSuccess, showError, showConfirm } from "@/lib/swal";
+import { formatBorrowerIdentity } from "@/lib/roles";
+import {
+  canConfirmReturnDetail,
+  deriveLoanStatusFromReturnDetails,
+  getLegacyDetailReturnStatus,
+  isMissingDetailReturnColumnsError,
+  type DetailReturnStatus,
+} from "@/lib/return-workflow";
 
 interface Peminjaman {
-    id_peminjaman: string;
-    tanggal_pinjam: string;
-    tanggal_kembali: string | null;
-    status: string;
-    pegawai?: { nama: string; email: string };
-    petugas?: { nama: string };
-    detail_peminjaman: {
-        id: string;
-        jumlah: number;
-        inventaris: { id_inventaris: string; nama: string; kode_inventaris: number; jumlah: number };
-    }[];
+  id_peminjaman: string;
+  tanggal_pinjam: string;
+  tanggal_kembali: string | null;
+  jam_kembali: string | null;
+  status: string;
+  pegawai?: { nama: string; username: string; role?: string | null };
+  petugas?: { nama: string };
+  detail_peminjaman: {
+    id: string;
+    jumlah: number;
+    status_pengembalian: DetailReturnStatus | null;
+    inventaris: {
+      id_inventaris: string;
+      nama: string;
+      kode_inventaris: number;
+      jumlah: number;
+    };
+  }[];
 }
 
+const normalizeDetailStatus = (
+  status: DetailReturnStatus | null | undefined,
+): DetailReturnStatus => {
+  if (status === "konfirmasi_pengembalian" || status === "dikembalikan") {
+    return status;
+  }
+
+  return "dipinjam";
+};
+
 export default function PengembalianPage() {
-    const [peminjaman, setPeminjaman] = useState<Peminjaman[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [statusFilter, setStatusFilter] = useState("all");
-    const [processingId, setProcessingId] = useState<string | null>(null);
+  const [peminjaman, setPeminjaman] = useState<Peminjaman[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [detailWorkflowSupported, setDetailWorkflowSupported] = useState(true);
+  const [schemaNotice, setSchemaNotice] = useState<string | null>(null);
 
-    const { role, profile } = useAuth();
-    const supabase = createClient();
+  const { profile } = useAuth();
+  const supabase = createClient();
 
-    const fetchPeminjaman = async () => {
-        setLoading(true);
-        try {
-            let query = supabase
-                .from('peminjaman')
-                .select(`
-                    *,
-                    pegawai:id_pegawai (nama, email),
-                    petugas:id_petugas (nama),
-                    detail_peminjaman (
-                        id,
-                        jumlah,
-                        inventaris:id_inventaris (id_inventaris, nama, kode_inventaris, jumlah)
-                    )
-                `)
-                .in('status', ['konfirmasi_pengembalian', 'dikembalikan', 'terlambat'])
-                .order('tanggal_pinjam', { ascending: false });
+  const fetchPeminjaman = useCallback(async () => {
+    setLoading(true);
+    try {
+      const detailedQuery = await supabase
+        .from("peminjaman")
+        .select(
+          `
+            *,
+            pegawai:id_pegawai (nama, username, role),
+            petugas:id_petugas (nama),
+            detail_peminjaman (
+              id,
+              jumlah,
+              status_pengembalian,
+              inventaris:id_inventaris (id_inventaris, nama, kode_inventaris, jumlah)
+            )
+          `,
+        )
+        .in("status", ["dipinjam", "konfirmasi_pengembalian", "dikembalikan", "terlambat"])
+        .order("tanggal_pinjam", { ascending: false });
 
-            // If pegawai, only show their own borrowings
-            if (role === 'pegawai' && profile?.id) {
-                query = query.eq('id_pegawai', profile.id);
-            }
-
-            const { data, error } = await query;
-
-            if (error) throw error;
-            setPeminjaman(data || []);
-        } catch (error) {
-            console.error('Error fetching peminjaman:', error);
-        } finally {
-            setLoading(false);
+      if (detailedQuery.error) {
+        if (!isMissingDetailReturnColumnsError(detailedQuery.error)) {
+          throw detailedQuery.error;
         }
-    };
 
-    useEffect(() => {
-        if (profile) {
-            fetchPeminjaman();
+        const legacyQuery = await supabase
+          .from("peminjaman")
+          .select(
+            `
+              *,
+              pegawai:id_pegawai (nama, username, role),
+              petugas:id_petugas (nama),
+              detail_peminjaman (
+                id,
+                jumlah,
+                inventaris:id_inventaris (id_inventaris, nama, kode_inventaris, jumlah)
+              )
+            `,
+          )
+          .in("status", ["dipinjam", "konfirmasi_pengembalian", "dikembalikan", "terlambat"])
+          .order("tanggal_pinjam", { ascending: false });
+
+        if (legacyQuery.error) throw legacyQuery.error;
+
+        const normalized = ((legacyQuery.data || []) as Array<Peminjaman>).map(
+          (item) => ({
+            ...item,
+            detail_peminjaman: item.detail_peminjaman.map((detail) => ({
+              ...detail,
+              status_pengembalian: getLegacyDetailReturnStatus(item.status),
+            })),
+          }),
+        );
+
+        setDetailWorkflowSupported(false);
+        setSchemaNotice(
+          "Database masih memakai skema lama, jadi verifikasi pengembalian sementara diproses per transaksi.",
+        );
+        setPeminjaman(normalized);
+        return;
+      }
+
+      setDetailWorkflowSupported(true);
+      setSchemaNotice(null);
+      setPeminjaman(detailedQuery.data || []);
+    } catch (error) {
+      console.error("Error fetching peminjaman:", error);
+      setSchemaNotice("Gagal memuat data pengembalian.");
+    } finally {
+      setLoading(false);
+    }
+  }, [supabase]);
+
+  useEffect(() => {
+    if (profile) {
+      fetchPeminjaman();
+    }
+  }, [fetchPeminjaman, profile]);
+
+  const handleReturn = async (loanId: string, detailId: string) => {
+    const loan = peminjaman.find((item) => item.id_peminjaman === loanId);
+    const detail = loan?.detail_peminjaman.find((item) => item.id === detailId);
+
+    if (!loan || !detail) {
+      return;
+    }
+
+    const confirmed = await showConfirm(
+      "Konfirmasi Pengembalian?",
+      `${detail.inventaris.nama} akan ditandai sudah dikembalikan.`,
+      "Ya, Konfirmasi",
+      "Batal",
+    );
+
+    if (!confirmed) return;
+
+    setProcessingId(detailWorkflowSupported ? detailId : loanId);
+    try {
+      if (!detailWorkflowSupported) {
+        for (const loanDetail of loan.detail_peminjaman) {
+          const { data: currentItem, error: fetchError } = await supabase
+            .from("inventaris")
+            .select("jumlah")
+            .eq("id_inventaris", loanDetail.inventaris.id_inventaris)
+            .single();
+
+          if (fetchError || !currentItem) {
+            throw fetchError || new Error("Stok inventaris tidak ditemukan.");
+          }
+
+          const { error: stockError } = await supabase
+            .from("inventaris")
+            .update({ jumlah: currentItem.jumlah + loanDetail.jumlah })
+            .eq("id_inventaris", loanDetail.inventaris.id_inventaris);
+
+          if (stockError) throw stockError;
         }
-    }, [profile, role]);
+      } else {
+        const { data: currentItem, error: fetchError } = await supabase
+          .from("inventaris")
+          .select("jumlah")
+          .eq("id_inventaris", detail.inventaris.id_inventaris)
+          .single();
 
-    const handleReturn = async (id: string) => {
-        const confirmed = await showConfirm('Konfirmasi Pengembalian?', 'Barang ini akan dikonfirmasi telah dikembalikan.', 'Ya, Konfirmasi', 'Batal');
-        if (!confirmed) return;
-
-        setProcessingId(id);
-        try {
-            const pinjaman = peminjaman.find(p => p.id_peminjaman === id);
-            const returnStatus = pinjaman
-                ? getReturnStatus(pinjaman.tanggal_pinjam, pinjaman.tanggal_kembali)
-                : 'dikembalikan';
-
-            if (pinjaman) {
-                // Kembalikan jumlah stok untuk setiap barang yang dipinjam
-                for (const detail of pinjaman.detail_peminjaman) {
-                    const inv = detail.inventaris as { id_inventaris: string; jumlah: number; nama: string; kode_inventaris: number };
-
-                    // Fetch stok terkini terlebih dahulu
-                    const { data: currentItem, error: fetchError } = await supabase
-                        .from('inventaris')
-                        .select('jumlah')
-                        .eq('id_inventaris', inv.id_inventaris)
-                        .single();
-
-                    if (fetchError || !currentItem) {
-                        console.error('Gagal mengambil stok:', inv.nama, fetchError);
-                        continue;
-                    }
-
-                    // Tambahkan kembali jumlah yang dipinjam ke stok
-                    const { error: updateError } = await supabase
-                        .from('inventaris')
-                        .update({ jumlah: currentItem.jumlah + detail.jumlah })
-                        .eq('id_inventaris', inv.id_inventaris);
-
-                    if (updateError) {
-                        console.error('Gagal update stok:', inv.nama, updateError);
-                    }
-                }
-            }
-
-            // Update status peminjaman menjadi dikembalikan atau terlambat
-            const { error } = await supabase
-                .from('peminjaman')
-                .update({
-                    status: returnStatus
-                })
-                .eq('id_peminjaman', id);
-
-            if (error) throw error;
-
-            await showSuccess('Berhasil!', 'Pengembalian berhasil dikonfirmasi');
-            fetchPeminjaman();
-        } catch (error) {
-            console.error('Error processing return:', error);
-            await showError('Gagal', 'Gagal memproses pengembalian. Silakan coba lagi.');
-        } finally {
-            setProcessingId(null);
+        if (fetchError || !currentItem) {
+          throw fetchError || new Error("Stok inventaris tidak ditemukan.");
         }
-    };
 
-    const handleRequestReturn = async (id: string) => {
-        // For pegawai - just mark as pending return (could add a status for this)
-        await showInfo('Permintaan Diajukan', 'Permintaan pengembalian telah diajukan. Silakan serahkan barang ke operator.');
-    };
+        const { error: stockError } = await supabase
+          .from("inventaris")
+          .update({ jumlah: currentItem.jumlah + detail.jumlah })
+          .eq("id_inventaris", detail.inventaris.id_inventaris);
 
-    const filteredPeminjaman = peminjaman.filter(item => {
-        const pegawaiName = item.pegawai?.nama?.toLowerCase() || '';
-        const items = item.detail_peminjaman.map(d => d.inventaris?.nama?.toLowerCase()).join(' ');
-        
-        const matchesSearch = pegawaiName.includes(searchQuery.toLowerCase()) ||
-            items.includes(searchQuery.toLowerCase());
-            
-        const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
-        
-        return matchesSearch && matchesStatus;
-    });
+        if (stockError) throw stockError;
 
-    const getStatusBadge = (status: string) => {
-        switch (status) {
-            case 'konfirmasi_pengembalian':
-                return (
-                    <span className="flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
-                        <RotateCcw size={14} /> Menunggu Konfirmasi Pengembalian
-                    </span>
-                );
-            case 'dipinjam':
-                return (
-                    <span className="flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
-                        <CheckCircle size={14} /> Dipinjam
-                    </span>
-                );
-            case 'pending':
-                return (
-                    <span className="flex items-center gap-1 px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-sm">
-                        <Clock size={14} /> Pending
-                    </span>
-                );
-            case 'dikembalikan':
-                return (
-                    <span className="flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
-                        <CheckCircle size={14} /> Dikembalikan
-                    </span>
-                );
-            case 'terlambat':
-                return (
-                    <span className="flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm">
-                        <AlertTriangle size={14} /> Terlambat
-                    </span>
-                );
-            default:
-                return (
-                    <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
-                        {status}
-                    </span>
-                );
-        }
-    };
+        const confirmedAt = new Date().toISOString();
+        const { error: detailError } = await supabase
+          .from("detail_peminjaman")
+          .update({
+            status_pengembalian: "dikembalikan",
+            dikonfirmasi_pengembalian_pada: confirmedAt,
+          })
+          .eq("id", detailId);
 
-    const isOverdue = (tanggalPinjam: string, tanggalKembali: string | null) =>
-        isPastDueDate(tanggalPinjam, tanggalKembali);
+        if (detailError) throw detailError;
+      }
+
+      const nextStatuses: DetailReturnStatus[] = detailWorkflowSupported
+        ? loan.detail_peminjaman.map((item) =>
+            item.id === detailId
+              ? "dikembalikan"
+              : item.status_pengembalian || "dipinjam",
+          )
+        : loan.detail_peminjaman.map(() => "dikembalikan");
+
+      const nextLoanStatus = deriveLoanStatusFromReturnDetails({
+        detailStatuses: nextStatuses,
+        tanggalPinjam: loan.tanggal_pinjam,
+        tanggalKembali: loan.tanggal_kembali,
+        jamKembali: loan.jam_kembali,
+      });
+
+      const { error: loanError } = await supabase
+        .from("peminjaman")
+        .update({
+          status: nextLoanStatus,
+        })
+        .eq("id_peminjaman", loanId);
+
+      if (loanError) throw loanError;
+
+      await showSuccess("Berhasil!", "Pengembalian barang berhasil dikonfirmasi.");
+      fetchPeminjaman();
+    } catch (error) {
+      console.error("Error processing return:", error);
+      await showError(
+        "Gagal",
+        "Gagal memproses pengembalian per jenis barang. Silakan coba lagi.",
+      );
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const pendingCount = peminjaman.flatMap((item) => item.detail_peminjaman).filter(
+    (detail) => normalizeDetailStatus(detail.status_pengembalian) === "konfirmasi_pengembalian",
+  ).length;
+
+  const completedCount = peminjaman.flatMap((item) => item.detail_peminjaman).filter(
+    (detail) => normalizeDetailStatus(detail.status_pengembalian) === "dikembalikan",
+  ).length;
+
+  const filteredPeminjaman = peminjaman.filter((item) => {
+    const hasReturnProgress =
+      item.detail_peminjaman.some(
+        (detail) => normalizeDetailStatus(detail.status_pengembalian) !== "dipinjam",
+      ) || item.status !== "dipinjam";
+
+    if (!hasReturnProgress) {
+      return false;
+    }
+
+    const pegawaiName = item.pegawai?.nama?.toLowerCase() || "";
+    const itemsList = item.detail_peminjaman
+      .map((detail) => detail.inventaris?.nama?.toLowerCase() || "")
+      .join(" ");
+
+    const matchesSearch =
+      pegawaiName.includes(searchQuery.toLowerCase()) ||
+      itemsList.includes(searchQuery.toLowerCase());
+
+    const matchesStatus =
+      statusFilter === "all" ||
+      item.detail_peminjaman.some(
+        (detail) => normalizeDetailStatus(detail.status_pengembalian) === statusFilter,
+      ) ||
+      (statusFilter === "terlambat" && item.status === "terlambat");
+
+    return matchesSearch && matchesStatus;
+  });
+
+  const getLoanStatusBadge = (status: string) => {
+    switch (status) {
+      case "konfirmasi_pengembalian":
+        return (
+          <span className="flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+            <RotateCcw size={14} /> Menunggu Verifikasi
+          </span>
+        );
+      case "dikembalikan":
+        return (
+          <span className="flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
+            <CheckCircle size={14} /> Transaksi Selesai
+          </span>
+        );
+      case "terlambat":
+        return (
+          <span className="flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm">
+            <AlertTriangle size={14} /> Selesai Terlambat
+          </span>
+        );
+      default:
+        return (
+          <span className="flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+            <Clock size={14} /> Sebagian Masih Dipinjam
+          </span>
+        );
+    }
+  };
+
+  const getDetailStatusBadge = (
+    status: DetailReturnStatus | null,
+    overdue: boolean,
+  ) => {
+    const normalizedStatus = normalizeDetailStatus(status);
+
+    if (normalizedStatus === "konfirmasi_pengembalian") {
+      return (
+        <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+          <RotateCcw size={12} /> Menunggu Verifikasi
+        </span>
+      );
+    }
+
+    if (normalizedStatus === "dikembalikan") {
+      return (
+        <span className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">
+          <CheckCircle size={12} /> Dikembalikan
+        </span>
+      );
+    }
+
+    if (overdue) {
+      return (
+        <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium">
+          <AlertTriangle size={12} /> Belum Diajukan
+        </span>
+      );
+    }
 
     return (
-
-        <div className="flex-1 bg-[#f5f7fb] flex flex-col min-h-screen">
-            <main className="flex-1 flex flex-col overflow-auto">
-                <Header title="Pengembalian" />
-
-                <div className="p-8">
-                    <h1 className="text-3xl font-bold mb-2 text-gray-800">Pengembalian Barang</h1>
-                    <p className="text-gray-500 mb-6">Konfirmasi pengembalian barang dari pegawai</p>
-
-                    {/* Summary Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
-                                    <Clock className="text-yellow-600" />
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">Menunggu Konfirmasi</p>
-                                    <p className="text-2xl font-bold text-gray-800">
-                                        {peminjaman.filter(p => ["pending", "konfirmasi_pengembalian"].includes(p.status)).length}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                                    <CheckCircle className="text-green-600" />
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">Selesai</p>
-                                    <p className="text-2xl font-bold text-gray-800">
-                                        {peminjaman.filter(p => ['dikembalikan', 'terlambat'].includes(p.status)).length}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Search & Filter */}
-                    <div className="flex flex-col md:flex-row justify-end gap-4 mb-6">
-                        <select
-                            className="border rounded-xl px-4 py-2 bg-white text-gray-600 outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                        >
-                            <option value="all">Semua Status</option>
-                            <option value="konfirmasi_pengembalian">Menunggu Konfirmasi</option>
-                            <option value="dikembalikan">Selesai</option>
-                            <option value="terlambat">Terlambat</option>
-                        </select>
-                        <div className="relative">
-                            <Search className="absolute left-3 top-3 text-gray-400" size={18} />
-                            <input
-                                className="w-full md:w-64 pl-10 pr-4 py-2 bg-white border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                                placeholder="Cari peminjam atau barang..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Table */}
-                    <div className="bg-white rounded-3xl shadow-lg overflow-hidden">
-                        {loading ? (
-                            <div className="p-12">
-                                <LoadingSpinner />
-                            </div>
-                        ) : filteredPeminjaman.length === 0 ? (
-                            <div className="p-12 text-center">
-                                <RotateCcw className="mx-auto text-gray-300 mb-4" size={48} />
-                                <p className="text-gray-500">Tidak ada barang yang perlu dikembalikan</p>
-                            </div>
-                        ) : (
-                            <table className="w-full">
-                                <thead className="bg-gray-50 text-gray-500 text-sm">
-                                    <tr>
-                                        {role !== 'pegawai' && (
-                                            <th className="px-6 py-4 text-left">Peminjam</th>
-                                        )}
-                                        <th className="px-6 py-4 text-left">Barang</th>
-                                        <th className="px-6 py-4 text-left">Tanggal Pinjam</th>
-                                        <th className="px-6 py-4 text-left">Status</th>
-                                        <th className="px-6 py-4 text-left">Aksi</th>
-                                    </tr>
-                                </thead>
-
-                                <tbody className="divide-y">
-                                        {filteredPeminjaman
-                                            .map((item) => (
-                                                <tr key={item.id_peminjaman} className="hover:bg-gray-50">
-                                                    {role !== 'pegawai' && (
-                                                        <td className="px-6 py-4">
-                                                            <div>
-                                                                <p className="font-medium text-gray-800">
-                                                                    {item.pegawai?.nama || 'Unknown'}
-                                                                </p>
-                                                                <p className="text-sm text-gray-400">
-                                                                    {item.pegawai?.email}
-                                                                </p>
-                                                            </div>
-                                                        </td>
-                                                    )}
-                                                    <td className="px-6 py-4">
-                                                        <div className="space-y-1">
-                                                            {item.detail_peminjaman.map((detail) => (
-                                                                <div key={detail.id} className="flex items-center gap-2">
-                                                                    <span className="text-gray-800">
-                                                                        {detail.inventaris?.nama}
-                                                                    </span>
-                                                                    <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">
-                                                                        x{detail.jumlah}
-                                                                    </span>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <div>
-                                                            <p className="text-gray-800">
-                                                                {new Date(item.tanggal_pinjam).toLocaleDateString('id-ID', {
-                                                                    day: 'numeric',
-                                                                    month: 'long',
-                                                                    year: 'numeric'
-                                                                })}
-                                                            </p>
-                                                            {isOverdue(item.tanggal_pinjam, item.tanggal_kembali) && (
-                                                                <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
-                                                                    <AlertTriangle size={12} /> Terlambat
-                                                                </p>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        {getStatusBadge(item.status)}
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        {item.status === 'konfirmasi_pengembalian' ? (
-                                                            <button
-                                                                onClick={() => handleReturn(item.id_peminjaman)}
-                                                                disabled={processingId === item.id_peminjaman}
-                                                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50 w-full justify-center"
-                                                            >
-                                                                {processingId === item.id_peminjaman ? (
-                                                                    <LoadingSpinner size="sm" />
-                                                                ) : (
-                                                                    <CheckCircle size={16} />
-                                                                )}
-                                                                Konfirmasi Kembali
-                                                            </button>
-                                                        ) : (
-                                                            <span className="text-gray-400 text-sm italic">Tidak ada aksi</span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                </tbody>
-                            </table>
-                        )}
-                    </div>
-                </div>
-            </main>
-        </div>
-
+      <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+        <Clock size={12} /> Belum Diajukan
+      </span>
     );
+  };
+
+  const isOverdue = (
+    tanggalPinjam: string,
+    tanggalKembali: string | null,
+    jamKembali: string | null,
+  ) => isPastDueDate(tanggalPinjam, tanggalKembali, new Date(), jamKembali);
+
+  return (
+    <div className="flex-1 bg-[#f5f7fb] flex flex-col min-h-screen">
+      <main className="flex-1 flex flex-col overflow-auto">
+        <Header title="Pengembalian" />
+
+        <div className="p-8">
+          <h1 className="text-3xl font-bold mb-2 text-gray-800">
+            Pengembalian Barang
+          </h1>
+          <p className="text-gray-500 mb-6">
+            Konfirmasi pengembalian tiap jenis barang dari peminjam
+          </p>
+          {schemaNotice && (
+            <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              {schemaNotice}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
+                  <Clock className="text-yellow-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Menunggu Verifikasi</p>
+                  <p className="text-2xl font-bold text-gray-800">
+                    {pendingCount}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                  <CheckCircle className="text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Sudah Dikembalikan</p>
+                  <p className="text-2xl font-bold text-gray-800">
+                    {completedCount}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col md:flex-row justify-end gap-4 mb-6">
+            <select
+              className="border rounded-xl px-4 py-2 bg-white text-gray-600 outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">Semua Status</option>
+              <option value="konfirmasi_pengembalian">Menunggu Verifikasi</option>
+              <option value="dikembalikan">Sudah Dikembalikan</option>
+              <option value="terlambat">Terlambat</option>
+            </select>
+            <div className="relative">
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                size={18}
+              />
+              <input
+                className="w-full md:w-64 pl-10 pr-4 py-2 bg-white border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                placeholder="Cari peminjam atau barang..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl shadow-lg overflow-hidden">
+            {loading ? (
+              <div className="p-12">
+                <LoadingSpinner />
+              </div>
+            ) : filteredPeminjaman.length === 0 ? (
+              <div className="p-12 text-center">
+                <RotateCcw className="mx-auto text-gray-300 mb-4" size={48} />
+                <p className="text-gray-500">
+                  Tidak ada progres pengembalian yang perlu ditampilkan
+                </p>
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead className="bg-gray-50 text-gray-500 text-sm">
+                  <tr>
+                    <th className="px-6 py-4 text-left">Peminjam</th>
+                    <th className="px-6 py-4 text-left">Detail Pengembalian</th>
+                    <th className="px-6 py-4 text-left">Tanggal Pinjam</th>
+                    <th className="px-6 py-4 text-left">Status Transaksi</th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y">
+                  {filteredPeminjaman.map((item) => {
+                    const overdue = isOverdue(
+                      item.tanggal_pinjam,
+                      item.tanggal_kembali,
+                      item.jam_kembali,
+                    );
+
+                    return (
+                      <tr key={item.id_peminjaman} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-gray-700">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-xs font-semibold text-blue-600">
+                              {item.pegawai?.nama?.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">
+                                {item.pegawai?.nama || "-"}
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                {formatBorrowerIdentity(item.pegawai ?? {}) || "-"}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-gray-700">
+                          <div className="space-y-3">
+                            <p className="text-xs font-semibold text-gray-400 tracking-wide">
+                              Transaksi #{item.id_peminjaman.slice(0, 8)}
+                            </p>
+                            {item.detail_peminjaman.map((detail, detailIndex) => {
+                              const isConfirmable = canConfirmReturnDetail(
+                                detail.status_pengembalian,
+                              );
+                              const showActionButton = detailWorkflowSupported
+                                ? isConfirmable
+                                : detailIndex === 0 && item.status === "konfirmasi_pengembalian";
+
+                              return (
+                                <div
+                                  key={detail.id}
+                                  className="flex items-center justify-between gap-4 rounded-2xl border border-gray-100 px-4 py-3"
+                                >
+                                  <div className="space-y-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm font-medium">
+                                        {detail.inventaris?.nama}
+                                      </span>
+                                      <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">
+                                        x{detail.jumlah}
+                                      </span>
+                                    </div>
+                                    {getDetailStatusBadge(
+                                      detail.status_pengembalian,
+                                      overdue,
+                                    )}
+                                  </div>
+                                  <div className="flex justify-end min-w-[172px]">
+                                    {showActionButton ? (
+                                      <button
+                                        onClick={() =>
+                                          handleReturn(item.id_peminjaman, detail.id)
+                                        }
+                                        disabled={
+                                          processingId ===
+                                          (detailWorkflowSupported ? detail.id : item.id_peminjaman)
+                                        }
+                                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-md shadow-green-100 flex items-center gap-2"
+                                      >
+                                        {processingId ===
+                                        (detailWorkflowSupported ? detail.id : item.id_peminjaman) ? (
+                                          <LoadingSpinner size="sm" />
+                                        ) : (
+                                          <CheckCircle size={16} />
+                                        )}
+                                        {detailWorkflowSupported
+                                          ? "Konfirmasi"
+                                          : "Konfirmasi Transaksi"}
+                                      </button>
+                                    ) : (
+                                      <span className="text-gray-400 text-xs">
+                                        {!detailWorkflowSupported &&
+                                        item.status === "konfirmasi_pengembalian"
+                                          ? "Ikuti transaksi"
+                                          : normalizeDetailStatus(
+                                                detail.status_pengembalian,
+                                            ) === "dikembalikan"
+                                          ? "Selesai"
+                                          : "Belum diajukan"}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-gray-700">
+                          <div>
+                            <p className="font-medium">
+                              {new Date(item.tanggal_pinjam).toLocaleDateString(
+                                "id-ID",
+                                {
+                                  day: "numeric",
+                                  month: "long",
+                                  year: "numeric",
+                                },
+                              )}
+                            </p>
+                            {overdue && item.status === "dipinjam" && (
+                              <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                                <AlertTriangle size={12} /> Jatuh tempo lewat
+                              </p>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          {getLoanStatusBadge(item.status)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
 }

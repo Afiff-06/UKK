@@ -13,11 +13,12 @@ import {
 import { useRouter } from "next/navigation";
 
 import Header from "@/components/header";
-import { getReturnStatus, isPastDueDate } from "@/lib/peminjaman-status";
+import { isPastDueDate } from "@/lib/peminjaman-status";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import LoadingSpinner from "@/components/loading-spinner";
 import { Button } from "@/components/ui/button";
+import { isBorrowerRole } from "@/lib/roles";
 
 interface RiwayatPeminjaman {
   id_peminjaman: string;
@@ -27,7 +28,7 @@ interface RiwayatPeminjaman {
   jam_kembali: string | null;
   status: string;
   alasan_penolakan: string | null;
-  pegawai?: { nama: string; email: string };
+  pegawai?: { nama: string; username: string };
   detail_peminjaman: {
     id: string;
     jumlah: number;
@@ -43,15 +44,32 @@ interface RiwayatPeminjamanRow {
   jam_kembali: string | null;
   status: string;
   alasan_penolakan: string | null;
-  pegawai?: { nama: string; email: string }[] | null;
+  pegawai?: { nama: string; username: string }[] | null;
   detail_peminjaman?:
     | {
         id: string;
         jumlah: number;
-        inventaris?: { nama: string; kode_inventaris: number }[] | null;
+        inventaris?:
+          | { nama: string; kode_inventaris: number }[]
+          | { nama: string; kode_inventaris: number }
+          | null;
       }[]
     | null;
 }
+
+const getInventarisDetail = (
+  inventaris?: { nama: string; kode_inventaris: number }[] | { nama: string; kode_inventaris: number } | null,
+) => {
+  if (!inventaris) {
+    return { nama: "", kode_inventaris: 0 };
+  }
+
+  if (Array.isArray(inventaris)) {
+    return inventaris[0] ?? { nama: "", kode_inventaris: 0 };
+  }
+
+  return inventaris;
+};
 
 export default function Peminjaman() {
   const [riwayatPeminjaman, setRiwayatPeminjaman] = useState<
@@ -63,6 +81,7 @@ export default function Peminjaman() {
   const { role, profile } = useAuth();
   const supabase = createClient();
   const router = useRouter();
+  const borrowerMode = isBorrowerRole(role);
 
   const isOverdue = (tanggalPinjam: string, tanggalKembali: string | null, status: string, jamKembali?: string | null) => {
     if (status !== "dipinjam") return false;
@@ -134,7 +153,7 @@ export default function Peminjaman() {
                     jam_kembali,
                     status,
                     alasan_penolakan,
-                    pegawai:id_pegawai (nama, email),
+                    pegawai:id_pegawai (nama, username),
                     detail_peminjaman (
                         id,
                         jumlah,
@@ -145,7 +164,7 @@ export default function Peminjaman() {
           .in("status", ["pending", "konfirmasi_peminjaman", "dipinjam", "ditolak"])
           .order("tanggal_pinjam", { ascending: false });
 
-        if (currentRole === "pegawai" && currentProfile?.id) {
+        if (isBorrowerRole(currentRole) && currentProfile?.id) {
           query = query.eq("id_pegawai", currentProfile.id);
         }
 
@@ -164,27 +183,21 @@ export default function Peminjaman() {
             pegawai: item.pegawai?.[0]
               ? {
                   nama: item.pegawai[0].nama,
-                  email: item.pegawai[0].email,
+                  username: item.pegawai[0].username,
                 }
               : undefined,
-            detail_peminjaman: (item.detail_peminjaman || []).map((detail) => ({
-              id: detail.id,
-              jumlah: detail.jumlah,
-              inventaris: {
-                nama:
-                  (detail.inventaris as any)?.nama ||
-                  (Array.isArray(detail.inventaris)
-                    ? detail.inventaris[0]?.nama
-                    : "") ||
-                  "",
-                kode_inventaris:
-                  (detail.inventaris as any)?.kode_inventaris ||
-                  (Array.isArray(detail.inventaris)
-                    ? detail.inventaris[0]?.kode_inventaris
-                    : 0) ||
-                  0,
-              },
-            })),
+            detail_peminjaman: (item.detail_peminjaman || []).map((detail) => {
+              const inventaris = getInventarisDetail(detail.inventaris);
+
+              return {
+                id: detail.id,
+                jumlah: detail.jumlah,
+                inventaris: {
+                  nama: inventaris.nama || "",
+                  kode_inventaris: inventaris.kode_inventaris || 0,
+                },
+              };
+            }),
           }),
         );
 
@@ -242,9 +255,9 @@ export default function Peminjaman() {
                 Riwayat Peminjaman
               </h1>
               <p className="text-gray-500">
-                {role === "pegawai"
+                {borrowerMode
                   ? "Pantau status peminjaman barang Anda"
-                  : "Kelola peminjaman barang seluruh pegawai"}
+                  : "Kelola peminjaman barang seluruh peminjam"}
               </p>
             </div>
           </div>
@@ -274,7 +287,7 @@ export default function Peminjaman() {
                 className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-6 py-6 shadow-lg shadow-blue-100 flex items-center gap-2 transition-all hover:scale-105"
               >
                 <Plus size={20} />
-                {role === "pegawai" ? "Ajukan Peminjaman" : "Buat Peminjaman"}
+                {borrowerMode ? "Ajukan Peminjaman" : "Buat Peminjaman"}
               </Button>
             </div>
           </div>

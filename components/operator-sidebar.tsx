@@ -37,7 +37,7 @@ export default function OperatorSidebar({ children }: { children: React.ReactNod
     }
 
     return (
-        <div className="min-h-screen bg-[#f5f7fb] flex w-full">
+        <div className="app-light-ui min-h-screen bg-[#f5f7fb] flex w-full">
             <aside className="w-72 bg-white shadow-lg flex flex-col sticky top-0 h-screen overflow-y-auto">
                 <div className="p-6 border-b">
                     <div className="flex items-center gap-3">

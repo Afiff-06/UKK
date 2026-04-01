@@ -17,6 +17,7 @@ import { FullPageLoader } from "./loading-spinner";
 const adminMenu = [
     { icon: <LayoutDashboard size={20} />, label: "Beranda", path: "/admin/dashboard" },
     { icon: <Users size={20} />, label: "Manajemen Pengguna", path: "/admin/pengguna" },
+    { icon: <Package size={20} />, label: "Inventaris Barang", path: "/admin/inventaris" },
     { icon: <BookOpen size={20} />, label: "Peminjaman", path: "/admin/peminjaman" },
     { icon: <RotateCcw size={20} />, label: "Pengembalian", path: "/admin/pengembalian" },
     { icon: <FileText size={20} />, label: "Laporan", path: "/admin/laporan" },
@@ -25,7 +26,7 @@ const adminMenu = [
 export default function AdminSidebar({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
-    const { logout, user, loading } = useAuth();
+    const { user, loading } = useAuth();
 
     if (loading && !user) {
         return <FullPageLoader />;
@@ -36,7 +37,7 @@ export default function AdminSidebar({ children }: { children: React.ReactNode }
     }
 
     return (
-        <div className="min-h-screen bg-[#f5f7fb] flex w-full">
+        <div className="app-light-ui min-h-screen bg-[#f5f7fb] flex w-full">
             <aside className="w-72 bg-white shadow-lg flex flex-col sticky top-0 h-screen overflow-y-auto">
                 <div className="p-6 border-b">
                     <div className="flex items-center gap-3">

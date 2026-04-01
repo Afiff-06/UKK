@@ -1,33 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
-    Plus,
-    Search,
     X,
-    Pencil,
-    Trash2,
-    Package,
-    AlertCircle,
 } from "lucide-react";
 
 import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
-import LoadingSpinner from "@/components/loading-spinner";
 import { useAuth } from "@/lib/auth-context";
+import InventarisTable, { type InventarisTableItem } from "@/components/inventaris-table";
 
-interface Inventaris {
-    id_inventaris: string;
-    kode_inventaris: number;
-    nama: string;
-    jumlah: number;
-    kondisi: string;
-    keterangan: string;
+interface Inventaris extends InventarisTableItem {
     id_jenis: string;
     id_ruang: string;
     tanggal_register: string;
-    jenis?: { nama_jenis: string };
-    ruang?: { nama_ruang: string };
 }
 
 interface Jenis {
@@ -62,7 +48,7 @@ export default function InventarisPage() {
     const supabase = createClient();
     const { user } = useAuth()
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
         try {
             const [inventarisRes, jenisRes, ruangRes] = await Promise.all([
@@ -86,11 +72,11 @@ export default function InventarisPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [supabase]);
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [fetchData]);
 
     const handleSubmit = async () => {
         try {
@@ -161,15 +147,18 @@ export default function InventarisPage() {
         }
     };
 
-    const handleEdit = (item: Inventaris) => {
-        setEditItem(item);
+    const handleEdit = (item: InventarisTableItem) => {
+        const fullItem = items.find((current) => current.id_inventaris === item.id_inventaris);
+        if (!fullItem) return;
+
+        setEditItem(fullItem);
         setFormData({
-            nama: item.nama,
-            jumlah: item.jumlah,
-            kondisi: item.kondisi,
-            keterangan: item.keterangan || "",
-            id_jenis: item.id_jenis || "",
-            id_ruang: item.id_ruang || "",
+            nama: fullItem.nama,
+            jumlah: fullItem.jumlah,
+            kondisi: fullItem.kondisi,
+            keterangan: fullItem.keterangan || "",
+            id_jenis: fullItem.id_jenis || "",
+            id_ruang: fullItem.id_ruang || "",
         });
         setShowModal(true);
     };
@@ -191,22 +180,6 @@ export default function InventarisPage() {
         setShowModal(true);
     };
 
-    const filteredItems = items.filter(item => {
-        const matchSearch = item.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.kode_inventaris.toString().includes(searchQuery);
-        const matchKondisi = !filterKondisi || item.kondisi === filterKondisi;
-        return matchSearch && matchKondisi;
-    });
-
-    const getKondisiBadge = (kondisi: string) => {
-        const colors: Record<string, string> = {
-            'Baik': 'bg-green-100 text-green-700',
-            'Rusak Ringan': 'bg-yellow-100 text-yellow-700',
-            'Rusak Berat': 'bg-red-100 text-red-700',
-        };
-        return colors[kondisi] || 'bg-gray-100 text-gray-700';
-    };
-
     return (
 
         <div className="flex-1 bg-[#f5f7fb] flex flex-col min-h-screen">
@@ -217,130 +190,18 @@ export default function InventarisPage() {
                     <h1 className="text-3xl font-bold mb-2 text-gray-800">Inventaris Barang</h1>
                     <p className="text-gray-500 mb-6">Kelola data barang inventaris</p>
 
-                    {/* Filters & Actions */}
-                    <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
-                        <div className="flex gap-3">
-                            <select
-                                value={filterKondisi}
-                                onChange={(e) => setFilterKondisi(e.target.value)}
-                                className="border rounded-xl px-4 py-2 bg-white"
-                            >
-                                <option value="">Semua Kondisi</option>
-                                <option value="Baik">Baik</option>
-                                <option value="Rusak Ringan">Rusak Ringan</option>
-                                <option value="Rusak Berat">Rusak Berat</option>
-                            </select>
-                        </div>
-
-                        <div className="flex gap-3 items-center">
-                            <div className="relative">
-                                <Search className="absolute left-3 top-3 text-gray-400" size={18} />
-                                <input
-                                    className="border rounded-xl pl-10 pr-4 py-2 w-64 bg-white"
-                                    placeholder="Cari barang..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                />
-                            </div>
-
-                            <button
-                                onClick={openAddModal}
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl flex items-center gap-2 shadow transition-colors"
-                            >
-                                <Plus size={18} />
-                                Tambah Barang
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Table */}
-                    <div className="bg-white rounded-3xl shadow-lg overflow-hidden">
-                        {loading ? (
-                            <div className="p-12">
-                                <LoadingSpinner />
-                            </div>
-                        ) : filteredItems.length === 0 ? (
-                            <div className="p-12 text-center">
-                                <Package className="mx-auto text-gray-300 mb-4" size={48} />
-                                <p className="text-gray-500">Tidak ada data barang</p>
-                            </div>
-                        ) : (
-                            <table className="w-full">
-                                <thead className="bg-gray-50 text-gray-500 text-sm">
-                                    <tr>
-                                        <th className="px-6 py-4 text-left">Kode</th>
-                                        <th className="px-6 py-4 text-left">Nama Barang</th>
-                                        <th className="px-6 py-4 text-left">Jenis</th>
-                                        <th className="px-6 py-4 text-left">Ruang</th>
-                                        <th className="px-6 py-4 text-center">Stok</th>
-                                        <th className="px-6 py-4 text-left">Kondisi</th>
-                                        <th className="px-6 py-4 text-left">Aksi</th>
-                                    </tr>
-                                </thead>
-
-                                <tbody className="divide-y">
-                                    {filteredItems.map((item) => (
-                                        <tr key={item.id_inventaris} className="hover:bg-gray-50">
-                                            <td className="px-6 py-4 font-mono text-sm">
-                                                INV-{String(item.kode_inventaris).padStart(4, '0')}
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                                                        <Package className="text-blue-600" size={18} />
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-medium text-gray-800">{item.nama}</p>
-                                                        {item.keterangan && (
-                                                            <p className="text-sm text-gray-400">{item.keterangan}</p>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 text-gray-600">
-                                                {item.jenis?.nama_jenis || '-'}
-                                            </td>
-                                            <td className="px-6 py-4 text-gray-600">
-                                                {item.ruang?.nama_ruang || '-'}
-                                            </td>
-                                            <td className="px-6 py-4 text-center">
-                                                <span className={`font-semibold ${item.jumlah <= 5 ? 'text-red-600' : 'text-gray-800'}`}>
-                                                    {item.jumlah}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className={`px-3 py-1 rounded-full text-sm ${getKondisiBadge(item.kondisi)}`}>
-                                                    {item.kondisi}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex gap-2">
-                                                    <button
-                                                        onClick={() => handleEdit(item)}
-                                                        className="border px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
-                                                    >
-                                                        <Pencil size={14} />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDelete(item.id_inventaris)}
-                                                        className="border px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
-                                                    >
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        )}
-
-                        {!loading && filteredItems.length > 0 && (
-                            <div className="flex justify-between items-center p-6 text-sm text-gray-500 border-t">
-                                <span>Menampilkan {filteredItems.length} dari {items.length} barang</span>
-                            </div>
-                        )}
-                    </div>
+                    <InventarisTable
+                        items={items}
+                        loading={loading}
+                        searchQuery={searchQuery}
+                        onSearchChange={setSearchQuery}
+                        filterKondisi={filterKondisi}
+                        onFilterKondisiChange={setFilterKondisi}
+                        mode="manage"
+                        onAdd={openAddModal}
+                        onEdit={handleEdit}
+                        onDelete={handleDelete}
+                    />
                 </div>
             </main>
 

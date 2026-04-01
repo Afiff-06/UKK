@@ -1,15 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
     FileText,
     Download,
     Calendar,
     Filter,
     BarChart3,
-    TrendingUp,
     Package,
-    AlertTriangle,
     CheckCircle,
     Clock,
 } from "lucide-react";
@@ -18,16 +16,79 @@ import * as XLSX from "xlsx";
 import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
 import LoadingSpinner from "@/components/loading-spinner";
+import { formatBorrowerIdentity } from "@/lib/roles";
+import { getReportStatStyles } from "@/lib/report-stat-styles";
+
+interface InventarisRelation {
+    nama_jenis?: string | null;
+    nama_ruang?: string | null;
+}
+
+interface RawInventarisReportItem {
+    id_inventaris: string;
+    kode_inventaris: number;
+    nama: string;
+    jumlah: number;
+    kondisi: string;
+    keterangan?: string | null;
+    jenis?: InventarisRelation | InventarisRelation[] | null;
+    ruang?: InventarisRelation | InventarisRelation[] | null;
+}
+
+interface InventarisReportItem {
+    id_inventaris: string;
+    kode_inventaris: number;
+    nama: string;
+    jumlah: number;
+    kondisi: string;
+    keterangan?: string | null;
+    jenis?: { nama_jenis?: string | null } | null;
+    ruang?: { nama_ruang?: string | null } | null;
+}
+
+interface RawPeminjamanReportItem {
+    id_peminjaman: string;
+    tanggal_pinjam: string;
+    tanggal_kembali: string | null;
+    status: string;
+    pegawai?: { nama?: string | null; username?: string | null; role?: string | null } | { nama?: string | null; username?: string | null; role?: string | null }[] | null;
+    petugas?: { nama?: string | null } | { nama?: string | null }[] | null;
+    detail_peminjaman?: {
+        jumlah: number;
+        inventaris?: { nama?: string | null } | { nama?: string | null }[] | null;
+    }[] | null;
+}
+
+interface PeminjamanReportItem {
+    id_peminjaman: string;
+    tanggal_pinjam: string;
+    tanggal_kembali: string | null;
+    status: string;
+    pegawai?: { nama?: string | null; username?: string | null; role?: string | null } | null;
+    petugas?: { nama?: string | null } | null;
+    detail_peminjaman: {
+        jumlah: number;
+        inventaris?: { nama?: string | null } | null;
+    }[];
+}
+
+function getSingleRelation<T>(relation: T | T[] | null | undefined) {
+    if (Array.isArray(relation)) {
+        return relation[0] ?? null;
+    }
+
+    return relation ?? null;
+}
 
 export default function LaporanPage() {
     const [activeTab, setActiveTab] = useState<'inventaris' | 'peminjaman'>('inventaris');
 
     // Inventaris state
-    const [inventarisList, setInventarisList] = useState<any[]>([]);
+    const [inventarisList, setInventarisList] = useState<InventarisReportItem[]>([]);
     const [loadingInventaris, setLoadingInventaris] = useState(true);
 
     // Peminjaman state
-    const [peminjamanList, setPeminjamanList] = useState<any[]>([]);
+    const [peminjamanList, setPeminjamanList] = useState<PeminjamanReportItem[]>([]);
     const [loadingPeminjaman, setLoadingPeminjaman] = useState(false);
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
@@ -44,12 +105,7 @@ export default function LaporanPage() {
         setStartDate(lastMonth.toISOString().split('T')[0]);
     }, []);
 
-    // Auto-load inventaris on mount
-    useEffect(() => {
-        fetchInventaris();
-    }, []);
-
-    const fetchInventaris = async () => {
+    const fetchInventaris = useCallback(async () => {
         setLoadingInventaris(true);
         try {
             const { data, error } = await supabase
@@ -58,13 +114,25 @@ export default function LaporanPage() {
                 .order('kode_inventaris', { ascending: true });
 
             if (error) throw error;
-            setInventarisList(data || []);
+
+            const inventaris = ((data || []) as RawInventarisReportItem[]).map((item) => ({
+                ...item,
+                jenis: getSingleRelation(item.jenis),
+                ruang: getSingleRelation(item.ruang),
+            }));
+
+            setInventarisList(inventaris);
         } catch (err) {
             console.error('Error fetching inventaris:', err);
         } finally {
             setLoadingInventaris(false);
         }
-    };
+    }, [supabase]);
+
+    // Auto-load inventaris on mount
+    useEffect(() => {
+        fetchInventaris();
+    }, [fetchInventaris]);
 
     const fetchPeminjaman = async () => {
         if (!startDate || !endDate) return;
@@ -74,7 +142,7 @@ export default function LaporanPage() {
                 .from('peminjaman')
                 .select(`
                     *,
-                    pegawai:id_pegawai (nama, email),
+                    pegawai:id_pegawai (nama, username, role),
                     petugas:id_petugas (nama),
                     detail_peminjaman (
                         jumlah,
@@ -87,7 +155,21 @@ export default function LaporanPage() {
                 .order('tanggal_pinjam', { ascending: false });
 
             if (error) throw error;
-            setPeminjamanList(data || []);
+
+            const peminjaman = ((data || []) as RawPeminjamanReportItem[]).map((item) => ({
+                id_peminjaman: item.id_peminjaman,
+                tanggal_pinjam: item.tanggal_pinjam,
+                tanggal_kembali: item.tanggal_kembali,
+                status: item.status,
+                pegawai: getSingleRelation(item.pegawai),
+                petugas: getSingleRelation(item.petugas),
+                detail_peminjaman: (item.detail_peminjaman || []).map((detail) => ({
+                    jumlah: detail.jumlah,
+                    inventaris: getSingleRelation(detail.inventaris),
+                })),
+            }));
+
+            setPeminjamanList(peminjaman);
             setPeminjamanLoaded(true);
         } catch (err) {
             console.error('Error fetching peminjaman:', err);
@@ -126,8 +208,8 @@ export default function LaporanPage() {
             const rows = peminjamanList.map((item, i) => ({
                 'No': i + 1,
                 'Peminjam': item.pegawai?.nama || '-',
-                'Email': item.pegawai?.email || '-',
-                'Barang': item.detail_peminjaman?.map((d: any) => `${d.inventaris?.nama} (x${d.jumlah})`).join(', ') || '-',
+                'Username': item.pegawai?.username ? `@${item.pegawai.username}` : '-',
+                'Barang': item.detail_peminjaman.map((d) => `${d.inventaris?.nama || '-'} (x${d.jumlah})`).join(', ') || '-',
                 'Tanggal Pinjam': new Date(item.tanggal_pinjam).toLocaleDateString('id-ID'),
                 'Tanggal Kembali': item.tanggal_kembali ? new Date(item.tanggal_kembali).toLocaleDateString('id-ID') : '-',
                 'Status': item.status,
@@ -323,17 +405,21 @@ export default function LaporanPage() {
                                         { label: 'Total Peminjaman', val: peminjamanStats.total, color: 'blue', Icon: FileText },
                                         { label: 'Dikembalikan', val: peminjamanStats.dikembalikan, color: 'green', Icon: CheckCircle },
                                         { label: 'Masih Dipinjam', val: peminjamanStats.aktif, color: 'orange', Icon: Clock },
-                                    ].map(({ label, val, color, Icon }) => (
-                                        <div key={label} className={`bg-${color}-50 rounded-2xl p-5 flex items-center gap-4`}>
-                                            <div className={`w-12 h-12 bg-${color}-100 rounded-xl flex items-center justify-center`}>
-                                                <Icon className={`text-${color}-600`} size={20} />
+                                    ].map(({ label, val, color, Icon }) => {
+                                        const styles = getReportStatStyles(color);
+
+                                        return (
+                                        <div key={label} className={`${styles.card} rounded-2xl p-5 flex items-center gap-4`}>
+                                            <div className={`${styles.iconWrapper} w-12 h-12 rounded-xl flex items-center justify-center`}>
+                                                <Icon className={styles.icon} size={20} />
                                             </div>
                                             <div>
                                                 <p className="text-sm text-gray-500">{label}</p>
                                                 <p className="text-2xl font-bold text-gray-800">{val}</p>
                                             </div>
                                         </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
 
@@ -379,11 +465,11 @@ export default function LaporanPage() {
                                                             <td className="px-5 py-3 text-gray-500 text-sm">{i + 1}</td>
                                                             <td className="px-5 py-3">
                                                                 <p className="font-medium text-gray-800">{item.pegawai?.nama || '-'}</p>
-                                                                <p className="text-xs text-gray-400">{item.pegawai?.email || ''}</p>
+                                                                <p className="text-xs text-gray-400">{formatBorrowerIdentity(item.pegawai || {})}</p>
                                                             </td>
                                                             <td className="px-5 py-3 text-gray-600 text-sm">
-                                                                {item.detail_peminjaman?.map((d: any) =>
-                                                                    `${d.inventaris?.nama} (x${d.jumlah})`
+                                                                {item.detail_peminjaman.map((d) =>
+                                                                    `${d.inventaris?.nama || '-'} (x${d.jumlah})`
                                                                 ).join(', ') || '-'}
                                                             </td>
                                                             <td className="px-5 py-3 text-gray-600 text-sm">

@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { getDashboardPathForRole, getRoutePrefixForRole } from "@/lib/roles";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -60,14 +61,23 @@ export async function updateSession(request: NextRequest) {
       .eq('id', user.id)
       .single();
     const url = request.nextUrl.clone();
-    if (userData?.role === 'admin') {
-      url.pathname = "/admin/dashboard";
-    } else if (userData?.role === 'operator') {
-      url.pathname = "/operator/dashboard";
-    } else {
-      url.pathname = "/pegawai/dashboard";
-    }
+    url.pathname = getDashboardPathForRole(userData?.role);
     return NextResponse.redirect(url);
+  }
+
+  if (user && isProtected) {
+    const { data: userData } = await supabase
+      .from("tb_user")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    const expectedPrefix = getRoutePrefixForRole(userData?.role);
+    if (!pathname.startsWith(expectedPrefix)) {
+      const url = request.nextUrl.clone();
+      url.pathname = getDashboardPathForRole(userData?.role);
+      return NextResponse.redirect(url);
+    }
   }
 
   // IMPORTANT: return supabaseResponse as-is to keep session cookies intact
