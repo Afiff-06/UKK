@@ -128,3 +128,43 @@ export const showInputDialog = async (
     }
     return null;
 };
+
+export const showBanDialog = async (
+    title: string,
+    text?: string,
+    confirmText: string = 'Lanjutkan',
+    cancelText: string = 'Batal'
+) => {
+    const result = await Swal.fire({
+        ...swalTheme,
+        icon: 'warning',
+        title,
+        text,
+        input: 'select',
+        inputOptions: {
+            '': '--- Pilih Durasi ---',
+            '1': '1 Hari',
+            '7': '1 Minggu',
+            '30': '1 Bulan',
+            'permanen': 'Permanen',
+            'unban': 'Cabut Ban'
+        },
+        inputPlaceholder: 'Pilih durasi',
+        showCancelButton: true,
+        confirmButtonText: confirmText,
+        confirmButtonColor: '#ea580c', // Orange-600
+        cancelButtonText: cancelText,
+        reverseButtons: true,
+        inputValidator: (value) => {
+            if (!value) {
+                return 'Durasi wajib dipilih!';
+            }
+            return null;
+        },
+    });
+
+    if (result.isConfirmed) {
+        return result.value as string;
+    }
+    return null;
+}

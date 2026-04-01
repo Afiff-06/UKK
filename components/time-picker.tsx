@@ -12,7 +12,8 @@ interface TimePickerProps {
 }
 
 const ALLOWED_HOURS = [7, 8, 9, 10, 11, 12, 13, 14, 15];
-const MINUTES = [0, 15, 30, 45];
+// Generate array 0-59
+const ALL_MINUTES = Array.from({ length: 60 }, (_, i) => i);
 
 export default function TimePicker({
     value,
@@ -25,11 +26,21 @@ export default function TimePicker({
     const [selectedHour, setSelectedHour] = useState<number | null>(null);
     const [step, setStep] = useState<"hour" | "minute">("hour");
     const containerRef = useRef<HTMLDivElement>(null);
+    const minuteScrollRef = useRef<HTMLDivElement>(null);
 
     // Parse current value
     const [displayHour, displayMinute] = value
         ? value.split(":").map(Number)
         : [8, 0];
+
+    useEffect(() => {
+        if (isOpen && step === "minute" && minuteScrollRef.current) {
+            const activeMinute = minuteScrollRef.current.querySelector(".active-minute");
+            if (activeMinute) {
+                activeMinute.scrollIntoView({ block: "center", behavior: "smooth" });
+            }
+        }
+    }, [isOpen, step]);
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -65,7 +76,6 @@ export default function TimePicker({
 
     // Calculate clock hand angle
     const hourAngle = ((displayHour % 12) / 12) * 360 - 90;
-    const minuteAngle = (displayMinute / 60) * 360 - 90;
 
     return (
         <div className="relative" ref={containerRef}>
@@ -143,45 +153,26 @@ export default function TimePicker({
                         </div>
                     </div>
 
-                    {/* Clock Face */}
-                    <div className="p-5">
-                        <div className="relative w-[240px] h-[240px] mx-auto">
-                            {/* Clock circle */}
-                            <div className="absolute inset-0 rounded-full bg-gray-50 border-2 border-gray-100">
-                                {/* Center dot */}
-                                <div className="absolute top-1/2 left-1/2 w-3 h-3 bg-blue-600 rounded-full -translate-x-1/2 -translate-y-1/2 z-10" />
-
-                                {/* Clock hand */}
-                                <div
-                                    className="absolute top-1/2 left-1/2 origin-left h-0.5 bg-blue-500 z-[5] transition-transform duration-300"
-                                    style={{
-                                        width: "80px",
-                                        transform: `rotate(${step === "hour" ? hourAngle : minuteAngle}deg)`,
-                                    }}
-                                />
-
-                                {step === "hour" ? (
-                                    /* Hour numbers */
-                                    filteredHours.map((hour, i) => {
+                    {/* Content */}
+                    <div className="p-5 h-[280px]">
+                        {step === "hour" ? (
+                            <div className="relative w-[240px] h-[240px] mx-auto">
+                                <div className="absolute inset-0 rounded-full bg-gray-50 border-2 border-gray-100">
+                                    <div className="absolute top-1/2 left-1/2 w-3 h-3 bg-blue-600 rounded-full -translate-x-1/2 -translate-y-1/2 z-10" />
+                                    <div
+                                        className="absolute top-1/2 left-1/2 origin-left h-0.5 bg-blue-500 z-[5] transition-transform duration-300"
+                                        style={{
+                                            width: "80px",
+                                            transform: `rotate(${hourAngle}deg)`,
+                                        }}
+                                    />
+                                    {filteredHours.map((hour, i) => {
                                         const totalHours = filteredHours.length;
-                                        const angle =
-                                            (i / totalHours) * 360 - 90;
+                                        const angle = (i / totalHours) * 360 - 90;
                                         const radius = 90;
-                                        const x =
-                                            120 +
-                                            radius *
-                                                Math.cos(
-                                                    (angle * Math.PI) / 180
-                                                );
-                                        const y =
-                                            120 +
-                                            radius *
-                                                Math.sin(
-                                                    (angle * Math.PI) / 180
-                                                );
-                                        const isSelected =
-                                            hour ===
-                                            (selectedHour ?? displayHour);
+                                        const x = 120 + radius * Math.cos((angle * Math.PI) / 180);
+                                        const y = 120 + radius * Math.sin((angle * Math.PI) / 180);
+                                        const isSelected = hour === (selectedHour ?? displayHour);
 
                                         return (
                                             <button
@@ -195,76 +186,50 @@ export default function TimePicker({
                                                         ? "bg-blue-600 text-white scale-110 shadow-lg shadow-blue-200"
                                                         : "text-gray-700 hover:bg-blue-100 hover:text-blue-700"
                                                 }`}
-                                                style={{
-                                                    left: `${x}px`,
-                                                    top: `${y}px`,
-                                                }}
+                                                style={{ left: `${x}px`, top: `${y}px` }}
                                             >
                                                 {String(hour).padStart(2, "0")}
                                             </button>
                                         );
-                                    })
-                                ) : (
-                                    /* Minute numbers */
-                                    MINUTES.map((minute, i) => {
-                                        const angle = (i / 4) * 360 - 90;
-                                        const radius = 90;
-                                        const x =
-                                            120 +
-                                            radius *
-                                                Math.cos(
-                                                    (angle * Math.PI) / 180
-                                                );
-                                        const y =
-                                            120 +
-                                            radius *
-                                                Math.sin(
-                                                    (angle * Math.PI) / 180
-                                                );
-                                        const isSelected =
-                                            minute === displayMinute;
-
-                                        return (
-                                            <button
-                                                key={minute}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleMinuteSelect(minute);
-                                                }}
-                                                className={`absolute w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-200 -translate-x-1/2 -translate-y-1/2 ${
-                                                    isSelected
-                                                        ? "bg-blue-600 text-white scale-110 shadow-lg shadow-blue-200"
-                                                        : "text-gray-700 hover:bg-blue-100 hover:text-blue-700"
-                                                }`}
-                                                style={{
-                                                    left: `${x}px`,
-                                                    top: `${y}px`,
-                                                }}
-                                            >
-                                                {String(minute).padStart(
-                                                    2,
-                                                    "0"
-                                                )}
-                                            </button>
-                                        );
-                                    })
-                                )}
+                                    })}
+                                </div>
                             </div>
-                        </div>
+                        ) : (
+                            <div 
+                                ref={minuteScrollRef}
+                                className="grid grid-cols-5 gap-2 overflow-y-auto h-full pr-1 custom-scrollbar"
+                            >
+                                {ALL_MINUTES.map((minute) => {
+                                    const isSelected = minute === displayMinute;
+                                    return (
+                                        <button
+                                            key={minute}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleMinuteSelect(minute);
+                                            }}
+                                            className={`h-10 rounded-lg flex items-center justify-center text-sm font-medium transition-all ${
+                                                isSelected
+                                                    ? "bg-blue-600 text-white shadow-md active-minute"
+                                                    : "bg-gray-50 text-gray-600 hover:bg-blue-50 hover:text-blue-600"
+                                            }`}
+                                        >
+                                            {String(minute).padStart(2, "0")}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
 
-                        {/* Step indicator */}
-                        <div className="flex items-center justify-center gap-2 mt-4">
-                            <div
-                                className={`w-2 h-2 rounded-full transition-colors ${step === "hour" ? "bg-blue-600" : "bg-gray-300"}`}
-                            />
-                            <div
-                                className={`w-2 h-2 rounded-full transition-colors ${step === "minute" ? "bg-blue-600" : "bg-gray-300"}`}
-                            />
+                    {/* Footer */}
+                    <div className="px-5 pb-4">
+                        <div className="flex items-center justify-center gap-2 mb-2">
+                            <div className={`w-2 h-2 rounded-full transition-colors ${step === "hour" ? "bg-blue-600" : "bg-gray-300"}`} />
+                            <div className={`w-2 h-2 rounded-full transition-colors ${step === "minute" ? "bg-blue-600" : "bg-gray-300"}`} />
                         </div>
-                        <p className="text-center text-xs text-gray-400 mt-2">
-                            {step === "hour"
-                                ? "Pilih jam (07–15)"
-                                : "Pilih menit"}
+                        <p className="text-center text-xs text-gray-400">
+                            {step === "hour" ? "Pilih jam (07–15)" : "Pilih menit (00–59)"}
                         </p>
                     </div>
                 </div>

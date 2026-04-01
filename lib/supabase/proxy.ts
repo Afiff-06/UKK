@@ -60,9 +60,17 @@ export async function updateSession(request: NextRequest) {
       .select('role')
       .eq('id', user.id)
       .single();
-    const url = request.nextUrl.clone();
-    url.pathname = getDashboardPathForRole(userData?.role);
-    return NextResponse.redirect(url);
+    const dashboardPath = getDashboardPathForRole(userData?.role);
+    // Only redirect if we have a valid non-auth dashboard path.
+    if (dashboardPath && dashboardPath !== "/auth/login") {
+      const url = request.nextUrl.clone();
+      url.pathname = dashboardPath;
+      return NextResponse.redirect(url);
+    }
+    // If no valid dashboard and at /auth/login, just let it pass or redirect to root.
+    if (pathname === "/auth/login") {
+        return supabaseResponse;
+    }
   }
 
   if (user && isProtected) {
@@ -73,7 +81,7 @@ export async function updateSession(request: NextRequest) {
       .single();
 
     const expectedPrefix = getRoutePrefixForRole(userData?.role);
-    if (!pathname.startsWith(expectedPrefix)) {
+    if (expectedPrefix && !pathname.startsWith(expectedPrefix)) {
       const url = request.nextUrl.clone();
       url.pathname = getDashboardPathForRole(userData?.role);
       return NextResponse.redirect(url);

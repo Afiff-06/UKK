@@ -32,13 +32,7 @@ export default function ProfilePage() {
   const isGuru = role === 'guru'
 
   const getGradient = (role: string | null) => {
-    switch (role) {
-      case 'guru': return 'from-emerald-500 to-teal-600'
-      case 'siswa': return 'from-orange-500 to-amber-600'
-      case 'admin': return 'from-purple-500 to-indigo-600'
-      case 'operator': return 'from-blue-500 to-indigo-600'
-      default: return 'from-gray-500 to-slate-600'
-    }
+    return 'from-blue-600 to-blue-700';
   }
 
   return (
@@ -87,7 +81,7 @@ export default function ProfilePage() {
             {/* Role Specific Info */}
             <div className="bg-white rounded-3xl shadow-lg p-8 border border-gray-50 h-full">
               <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                {isSiswa ? <GraduationCap className="text-orange-500" /> : <BadgeInfo className="text-emerald-500" />} 
+                {isSiswa ? <GraduationCap className="text-blue-500" /> : <BadgeInfo className="text-blue-500" />} 
                 Detail Identitas
               </h2>
               

@@ -75,9 +75,10 @@ interface UserDataPayload {
 }
 
 interface ActionPayload {
-    action: 'create' | 'update' | 'delete';
+    action: 'create' | 'update' | 'delete' | 'ban';
     userId?: string;
     userData?: UserDataPayload;
+    blockedUntil?: string | null;
 }
 
 type SanitizedUserData = {
@@ -308,7 +309,7 @@ export async function getManagedUsersAction() {
 }
 
 export async function manageUserAction(payload: ActionPayload) {
-    const { action, userId, userData } = payload;
+    const { action, userId, userData, blockedUntil } = payload;
 
     try {
         if (action === 'delete') {
@@ -316,8 +317,8 @@ export async function manageUserAction(payload: ActionPayload) {
                 throw new Error('User ID wajib ada untuk hapus.');
             }
 
-            const existingUsers = await getManagedUsers();
-            const currentUser = existingUsers.find((user) => user.id === userId);
+            const users = await getManagedUsers();
+            const currentUser = users.find((user) => user.id === userId);
 
             if (!currentUser) {
                 throw new Error('Pengguna tidak ditemukan.');
@@ -362,6 +363,22 @@ export async function manageUserAction(payload: ActionPayload) {
             return { success: true };
         }
 
+        if (action === 'ban') {
+            if (!userId) {
+                throw new Error('User ID wajib ada untuk ban.');
+            }
+
+            const { error: dbError } = await supabaseAdmin
+                .from('tb_user')
+                .update({ blocked_until: blockedUntil || null })
+                .eq('id', userId);
+
+            if (dbError) throw dbError;
+
+            revalidatePath('/admin/pengguna');
+            return { success: true };
+        }
+
         if (!userData) {
             throw new Error('Data pengguna wajib diisi.');
         }
@@ -369,7 +386,10 @@ export async function manageUserAction(payload: ActionPayload) {
         const availableColumns = await getAvailableDbUserColumns();
         const existingUsers = await getManagedUsers();
         const sanitizedUser = sanitizeUserData(userData);
-        validateUserData(sanitizedUser, action);
+        
+        if (action === 'create' || action === 'update') {
+            validateUserData(sanitizedUser, action);
+        }
 
         if (action === 'create') {
             if (!canAssignRole({ currentRole: null, nextRole: sanitizedUser.role })) {

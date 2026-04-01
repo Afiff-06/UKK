@@ -10,6 +10,9 @@ import {
     Trash2,
     Users,
     X,
+    Ban,
+    ShieldAlert,
+    ShieldCheck
 } from "lucide-react";
 
 import Header from "@/components/header";
@@ -17,7 +20,7 @@ import LoadingSpinner from "@/components/loading-spinner";
 import { getRoleLabel } from "@/lib/roles";
 import { canDeleteManagedUser, getEditableRoleOptions } from "@/lib/user-validation";
 import { normalizeDigitsOnly } from "@/lib/user-normalization";
-import { showConfirmDanger, showError, showSuccess, showWarning } from "@/lib/swal";
+import { showConfirmDanger, showError, showSuccess, showWarning, showBanDialog } from "@/lib/swal";
 import { getManagedUsersAction, manageUserAction } from "./user-actions";
 
 interface UserData {
@@ -182,6 +185,51 @@ export default function ManajemenPengguna() {
             await showError("Gagal", error instanceof Error ? error.message : "Gagal menghapus pengguna.");
         } finally {
             setDeletingUserId(null);
+        }
+    };
+
+    const handleBan = async (user: UserData) => {
+        const duration = await showBanDialog(
+            `Ban @${user.username}?`,
+            "Pilih durasi ban atau cabut ban.",
+            "Lanjutkan",
+            "Batal"
+        );
+
+        if (!duration) return;
+
+        let blockedUntil: string | null = null;
+        if (duration === 'unban') {
+            blockedUntil = null;
+        } else if (duration === '1') {
+            blockedUntil = new Date(Date.now() + 86400000).toISOString();
+        } else if (duration === '7') {
+            blockedUntil = new Date(Date.now() + 7 * 86400000).toISOString();
+        } else if (duration === '30') {
+            blockedUntil = new Date(Date.now() + 30 * 86400000).toISOString();
+        } else if (duration === 'permanen') {
+            blockedUntil = '9999-12-31';
+        } else {
+            return; // No option selected
+        }
+
+        setLoading(true);
+        try {
+            const result = await manageUserAction({
+                action: 'ban',
+                userId: user.id,
+                blockedUntil
+            });
+
+            if (!result.success) throw new Error(result.error);
+
+            await showSuccess("Berhasil", duration === 'unban' ? "Ban berhasil dicabut." : "Pengguna berhasil dibanned.");
+            fetchUsers();
+        } catch (error) {
+            console.error("Error banning user:", error);
+            await showError("Gagal", error instanceof Error ? error.message : "Gagal memproses ban.");
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -381,10 +429,22 @@ export default function ManajemenPengguna() {
                                         <tr key={user.id} className="hover:bg-gray-50">
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-medium">
+                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-medium relative">
                                                         {user.nama.charAt(0).toUpperCase()}
+                                                        {user.blocked_until && new Date(user.blocked_until) > new Date() && (
+                                                            <div className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 border-2 border-white" title="Banned">
+                                                                <ShieldAlert size={10} />
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    <span className="font-medium text-gray-800">{user.nama}</span>
+                                                    <div>
+                                                        <span className="font-medium text-gray-800">{user.nama}</span>
+                                                        {user.blocked_until && new Date(user.blocked_until) > new Date() && (
+                                                            <p className="text-[10px] text-red-500 font-semibold bg-red-50 px-1.5 py-0.5 rounded-md mt-0.5 inline-block">
+                                                                DIBLOKIR SAMPAI {new Date(user.blocked_until).toLocaleDateString('id-ID')}
+                                                            </p>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 text-gray-600">
@@ -413,6 +473,15 @@ export default function ManajemenPengguna() {
                                                         >
                                                             <Trash2 size={14} />
                                                             {deletingUserId === user.id ? "Menghapus..." : "Hapus"}
+                                                        </button>
+                                                    )}
+                                                    {user.role !== 'admin' && user.role !== 'operator' && (
+                                                        <button
+                                                            onClick={() => handleBan(user)}
+                                                            className={`border px-3 py-2 rounded-lg flex items-center gap-1 transition-colors ${user.blocked_until && new Date(user.blocked_until) > new Date() ? 'text-emerald-600 hover:bg-emerald-50' : 'text-orange-600 hover:bg-orange-50'}`}
+                                                        >
+                                                            <Ban size={14} />
+                                                            {user.blocked_until && new Date(user.blocked_until) > new Date() ? "Cabut Ban" : "Ban"}
                                                         </button>
                                                     )}
                                                 </div>

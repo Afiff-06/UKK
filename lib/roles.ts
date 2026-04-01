@@ -16,11 +16,14 @@ export function canManageInventory(role: string | null | undefined) {
 export function getRoutePrefixForRole(role: string | null | undefined) {
   if (role === "admin") return "/admin";
   if (role === "operator") return "/operator";
-  return "/pegawai";
+  if (isBorrowerRole(role)) return "/pegawai";
+  return "";
 }
 
 export function getDashboardPathForRole(role: string | null | undefined) {
-  return `${getRoutePrefixForRole(role)}/dashboard`;
+  const prefix = getRoutePrefixForRole(role);
+  if (!prefix) return "/auth/login";
+  return `${prefix}/dashboard`;
 }
 
 export function getRoleLabel(role: string | null | undefined) {
