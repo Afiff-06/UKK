@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Clock, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Clock, ChevronUp, ChevronDown } from "lucide-react";
 
 interface TimePickerProps {
     value: string;
@@ -11,10 +11,6 @@ interface TimePickerProps {
     maxHour?: number;
 }
 
-const ALLOWED_HOURS = [7, 8, 9, 10, 11, 12, 13, 14, 15];
-// Generate array 0-59
-const ALL_MINUTES = Array.from({ length: 60 }, (_, i) => i);
-
 export default function TimePicker({
     value,
     onChange,
@@ -22,218 +18,117 @@ export default function TimePicker({
     minHour = 7,
     maxHour = 15,
 }: TimePickerProps) {
-    const [isOpen, setIsOpen] = useState(false);
-    const [selectedHour, setSelectedHour] = useState<number | null>(null);
-    const [step, setStep] = useState<"hour" | "minute">("hour");
-    const containerRef = useRef<HTMLDivElement>(null);
-    const minuteScrollRef = useRef<HTMLDivElement>(null);
-
     // Parse current value
-    const [displayHour, displayMinute] = value
-        ? value.split(":").map(Number)
-        : [8, 0];
+    const [h, m] = value ? value.split(":").map(Number) : [8, 0];
+    const [hour, setHour] = useState(h);
+    const [minute, setMinute] = useState(m);
 
+    // Sync with external value
     useEffect(() => {
-        if (isOpen && step === "minute" && minuteScrollRef.current) {
-            const activeMinute = minuteScrollRef.current.querySelector(".active-minute");
-            if (activeMinute) {
-                activeMinute.scrollIntoView({ block: "center", behavior: "smooth" });
-            }
+        const [newH, newM] = value ? value.split(":").map(Number) : [8, 0];
+        setHour(newH);
+        setMinute(newM);
+    }, [value]);
+
+    const updateTime = (newHour: number, newMinute: number) => {
+        // Enforce hour range
+        let finalHour = newHour;
+        if (finalHour < minHour) finalHour = maxHour;
+        if (finalHour > maxHour) finalHour = minHour;
+
+        // Enforce minute range
+        let finalMinute = newMinute;
+        if (finalMinute < 0) {
+            finalMinute = 59;
+            finalHour = finalHour - 1 < minHour ? maxHour : finalHour - 1;
         }
-    }, [isOpen, step]);
+        if (finalMinute > 59) {
+            finalMinute = 0;
+            finalHour = finalHour + 1 > maxHour ? minHour : finalHour + 1;
+        }
 
-    useEffect(() => {
-        const handleClickOutside = (e: MouseEvent) => {
-            if (
-                containerRef.current &&
-                !containerRef.current.contains(e.target as Node)
-            ) {
-                setIsOpen(false);
-                setStep("hour");
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () =>
-            document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
-    const handleHourSelect = (hour: number) => {
-        setSelectedHour(hour);
-        setStep("minute");
+        const timeString = `${String(finalHour).padStart(2, "0")}:${String(finalMinute).padStart(2, "0")}`;
+        onChange(timeString);
     };
 
-    const handleMinuteSelect = (minute: number) => {
-        const h = selectedHour ?? displayHour;
-        const newTime = `${String(h).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-        onChange(newTime);
-        setIsOpen(false);
-        setStep("hour");
+    const handleHourChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = parseInt(e.target.value) || 0;
+        updateTime(val, minute);
     };
 
-    const filteredHours = ALLOWED_HOURS.filter(
-        (h) => h >= minHour && h <= maxHour
-    );
-
-    // Calculate clock hand angle
-    const hourAngle = ((displayHour % 12) / 12) * 360 - 90;
+    const handleMinuteChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = parseInt(e.target.value) || 0;
+        updateTime(hour, val);
+    };
 
     return (
-        <div className="relative" ref={containerRef}>
+        <div className="space-y-2">
             {label && (
-                <label className="block text-sm font-medium text-gray-600 mb-1 ml-1">
+                <label className="block text-sm font-semibold text-gray-700 ml-1">
                     {label}
                 </label>
             )}
-            <div
-                onClick={() => {
-                    setIsOpen(!isOpen);
-                    setStep("hour");
-                }}
-                className="w-full border rounded-xl px-4 py-3 bg-white flex items-center justify-between cursor-pointer hover:border-blue-400 transition-colors group"
-            >
-                <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center group-hover:bg-blue-100 transition-colors">
-                        <Clock
-                            size={16}
-                            className="text-blue-500"
+            <div className="flex items-center gap-4 bg-white border border-gray-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-300 group">
+                <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                    <Clock size={20} className="text-blue-600" />
+                </div>
+
+                <div className="flex items-center gap-2">
+                    {/* Hour Control */}
+                    <div className="flex flex-col items-center">
+                        <button 
+                            onClick={() => updateTime(hour + 1, minute)}
+                            className="p-1 hover:bg-gray-100 rounded-md transition-colors text-gray-400 hover:text-blue-600"
+                        >
+                            <ChevronUp size={16} />
+                        </button>
+                        <input
+                            type="number"
+                            value={String(hour).padStart(2, "0")}
+                            onChange={handleHourChange}
+                            onBlur={() => updateTime(hour, minute)}
+                            className="w-14 text-center text-2xl font-bold text-gray-800 bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
+                        <button 
+                            onClick={() => updateTime(hour - 1, minute)}
+                            className="p-1 hover:bg-gray-100 rounded-md transition-colors text-gray-400 hover:text-blue-600"
+                        >
+                            <ChevronDown size={16} />
+                        </button>
                     </div>
-                    <span className="font-medium text-gray-800 text-lg tracking-wide">
-                        {String(displayHour).padStart(2, "0")}:
-                        {String(displayMinute).padStart(2, "0")}
+
+                    <span className="text-2xl font-bold text-gray-300 mb-1">:</span>
+
+                    {/* Minute Control */}
+                    <div className="flex flex-col items-center">
+                        <button 
+                            onClick={() => updateTime(hour, minute + 1)}
+                            className="p-1 hover:bg-gray-100 rounded-md transition-colors text-gray-400 hover:text-blue-600"
+                        >
+                            <ChevronUp size={16} />
+                        </button>
+                        <input
+                            type="number"
+                            value={String(minute).padStart(2, "0")}
+                            onChange={handleMinuteChange}
+                            onBlur={() => updateTime(hour, minute)}
+                            className="w-14 text-center text-2xl font-bold text-gray-800 bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                        <button 
+                            onClick={() => updateTime(hour, minute - 1)}
+                            className="p-1 hover:bg-gray-100 rounded-md transition-colors text-gray-400 hover:text-blue-600"
+                        >
+                            <ChevronDown size={16} />
+                        </button>
+                    </div>
+                </div>
+
+                <div className="ml-auto hidden sm:block">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
+                        {minHour}:00 - {maxHour}:00
                     </span>
                 </div>
-                <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
-                    07:00 – 15:00
-                </span>
             </div>
-
-            {isOpen && (
-                <div className="absolute z-50 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 w-[320px] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                    {/* Header */}
-                    <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-5 py-4">
-                        <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-medium opacity-80 uppercase tracking-wider">
-                                Pilih Waktu
-                            </span>
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setIsOpen(false);
-                                    setStep("hour");
-                                }}
-                                className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors"
-                            >
-                                <X size={12} />
-                            </button>
-                        </div>
-                        <div className="flex items-center gap-1 text-3xl font-bold">
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setStep("hour");
-                                }}
-                                className={`px-2 py-1 rounded-lg transition-colors ${step === "hour" ? "bg-white/20" : "hover:bg-white/10"}`}
-                            >
-                                {String(selectedHour ?? displayHour).padStart(
-                                    2,
-                                    "0"
-                                )}
-                            </button>
-                            <span>:</span>
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setStep("minute");
-                                }}
-                                className={`px-2 py-1 rounded-lg transition-colors ${step === "minute" ? "bg-white/20" : "hover:bg-white/10"}`}
-                            >
-                                {String(displayMinute).padStart(2, "0")}
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Content */}
-                    <div className="p-5 h-[280px]">
-                        {step === "hour" ? (
-                            <div className="relative w-[240px] h-[240px] mx-auto">
-                                <div className="absolute inset-0 rounded-full bg-gray-50 border-2 border-gray-100">
-                                    <div className="absolute top-1/2 left-1/2 w-3 h-3 bg-blue-600 rounded-full -translate-x-1/2 -translate-y-1/2 z-10" />
-                                    <div
-                                        className="absolute top-1/2 left-1/2 origin-left h-0.5 bg-blue-500 z-[5] transition-transform duration-300"
-                                        style={{
-                                            width: "80px",
-                                            transform: `rotate(${hourAngle}deg)`,
-                                        }}
-                                    />
-                                    {filteredHours.map((hour, i) => {
-                                        const totalHours = filteredHours.length;
-                                        const angle = (i / totalHours) * 360 - 90;
-                                        const radius = 90;
-                                        const x = 120 + radius * Math.cos((angle * Math.PI) / 180);
-                                        const y = 120 + radius * Math.sin((angle * Math.PI) / 180);
-                                        const isSelected = hour === (selectedHour ?? displayHour);
-
-                                        return (
-                                            <button
-                                                key={hour}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleHourSelect(hour);
-                                                }}
-                                                className={`absolute w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-200 -translate-x-1/2 -translate-y-1/2 ${
-                                                    isSelected
-                                                        ? "bg-blue-600 text-white scale-110 shadow-lg shadow-blue-200"
-                                                        : "text-gray-700 hover:bg-blue-100 hover:text-blue-700"
-                                                }`}
-                                                style={{ left: `${x}px`, top: `${y}px` }}
-                                            >
-                                                {String(hour).padStart(2, "0")}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        ) : (
-                            <div 
-                                ref={minuteScrollRef}
-                                className="grid grid-cols-5 gap-2 overflow-y-auto h-full pr-1 custom-scrollbar"
-                            >
-                                {ALL_MINUTES.map((minute) => {
-                                    const isSelected = minute === displayMinute;
-                                    return (
-                                        <button
-                                            key={minute}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleMinuteSelect(minute);
-                                            }}
-                                            className={`h-10 rounded-lg flex items-center justify-center text-sm font-medium transition-all ${
-                                                isSelected
-                                                    ? "bg-blue-600 text-white shadow-md active-minute"
-                                                    : "bg-gray-50 text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-                                            }`}
-                                        >
-                                            {String(minute).padStart(2, "0")}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Footer */}
-                    <div className="px-5 pb-4">
-                        <div className="flex items-center justify-center gap-2 mb-2">
-                            <div className={`w-2 h-2 rounded-full transition-colors ${step === "hour" ? "bg-blue-600" : "bg-gray-300"}`} />
-                            <div className={`w-2 h-2 rounded-full transition-colors ${step === "minute" ? "bg-blue-600" : "bg-gray-300"}`} />
-                        </div>
-                        <p className="text-center text-xs text-gray-400">
-                            {step === "hour" ? "Pilih jam (07–15)" : "Pilih menit (00–59)"}
-                        </p>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

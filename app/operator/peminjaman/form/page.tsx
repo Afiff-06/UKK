@@ -95,6 +95,7 @@ export default function Peminjaman() {
                 const { data: invData } = await supabase
                     .from('inventaris')
                     .select('id_inventaris, nama, jumlah, kode_inventaris')
+                    .eq('kondisi', 'Baik')
                     .gt('jumlah', 0)
                     .order('nama');
 
@@ -220,6 +221,7 @@ export default function Peminjaman() {
             const { data: invData } = await supabase
                 .from('inventaris')
                 .select('id_inventaris, nama, jumlah, kode_inventaris')
+                .eq('kondisi', 'Baik')
                 .gt('jumlah', 0)
                 .order('nama');
             if (invData) setInventaris(invData);

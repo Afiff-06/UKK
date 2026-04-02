@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Power, User, Bell, AlertCircle, Clock, ChevronDown, Mail, Phone, MapPin, Hash, IdCard, GraduationCap, School, X } from 'lucide-react';
+import { LogOut, User, Bell, AlertCircle, Clock, ChevronDown, Mail, Phone, MapPin, Hash, IdCard, GraduationCap, School, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { createClient } from '@/lib/supabase/client';
 import { isPastDueDate, getDueDate } from '@/lib/peminjaman-status';
@@ -251,13 +251,13 @@ export default function Header({ title }: HeaderProps) {
 
                     {showProfile && (
                         <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
-                            <button 
-                                onClick={logout}
-                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                            >
-                                <Power size={16} />
-                                <span className="font-medium">Keluar</span>
-                            </button>
+                             <button 
+                                 onClick={logout}
+                                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                             >
+                                 <LogOut size={16} />
+                                 <span className="font-medium">Keluar</span>
+                             </button>
                         </div>
                     )}
                 </div>
