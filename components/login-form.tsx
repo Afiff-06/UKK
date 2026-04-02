@@ -160,7 +160,7 @@ export function LoginForm() {
           {/* Divider */}
           <div className="my-6 flex items-center gap-4">
             <div className="flex-1 h-px bg-gray-200"></div>
-            <span className="text-sm text-gray-400">Info</span>
+            <span className="text-sm text-gray-400">Informasi</span>
             <div className="flex-1 h-px bg-gray-200"></div>
           </div>
 

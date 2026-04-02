@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { LogOut, User, Bell, AlertCircle, Clock, ChevronDown, Mail, Phone, MapPin, Hash, IdCard, GraduationCap, School, X } from 'lucide-react';
+import { Power, User, Bell, AlertCircle, Clock, ChevronDown, Mail, Phone, MapPin, Hash, IdCard, GraduationCap, School, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { createClient } from '@/lib/supabase/client';
 import { isPastDueDate, getDueDate } from '@/lib/peminjaman-status';
@@ -48,7 +48,6 @@ export default function Header({ title }: HeaderProps) {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [showNotifications, setShowNotifications] = useState(false);
     const [showProfile, setShowProfile] = useState(false);
-    const [showProfileModal, setShowProfileModal] = useState(false);
     const notifRef = useRef<HTMLDivElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const supabase = createClient();
@@ -99,7 +98,7 @@ export default function Header({ title }: HeaderProps) {
                         if (isLateNow || wasReturnedLate) {
                             allNotifs.push({
                                 id_peminjaman: p.id_peminjaman,
-                                nama_pegawai: borrower?.nama || 'Unknown',
+                                nama_pegawai: borrower?.nama || 'Tidak Diketahui',
                                 nama_barang: p.detail_peminjaman?.map((detail) => {
                                     const inventaris = Array.isArray(detail.inventaris)
                                         ? detail.inventaris[0]
@@ -116,7 +115,7 @@ export default function Header({ title }: HeaderProps) {
                     setNotifications(allNotifs);
                 }
             } catch (error) {
-                console.error("Error fetching notifications:", error);
+                console.error("Gagal memuat notifikasi:", error);
             }
         };
 
@@ -241,7 +240,7 @@ export default function Header({ title }: HeaderProps) {
                         className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-1.5 rounded-2xl transition-colors group"
                     >
                         <div className="text-right hidden sm:block">
-                            <p className="text-sm font-semibold text-gray-700 group-hover:text-blue-600 transition-colors">{profile?.nama || 'User'}</p>
+                            <p className="text-sm font-semibold text-gray-700 group-hover:text-blue-600 transition-colors">{profile?.nama || 'Pengguna'}</p>
                             <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400">{getRoleLabel(role)}</p>
                         </div>
                         <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${getRoleColor(role)} flex items-center justify-center text-white text-base font-bold shadow-sm group-hover:shadow-md transition-all`}>
@@ -253,21 +252,10 @@ export default function Header({ title }: HeaderProps) {
                     {showProfile && (
                         <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
                             <button 
-                                onClick={() => {
-                                    setShowProfileModal(true);
-                                    setShowProfile(false);
-                                }}
-                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                            >
-                                <User size={16} />
-                                <span className="font-medium">Profil Saya</span>
-                            </button>
-                            <div className="h-px bg-gray-50 my-1 mx-2" />
-                            <button 
                                 onClick={logout}
                                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
                             >
-                                <LogOut size={16} />
+                                <Power size={16} />
                                 <span className="font-medium">Keluar</span>
                             </button>
                         </div>
@@ -275,78 +263,7 @@ export default function Header({ title }: HeaderProps) {
                 </div>
             </div>
 
-            {/* Profile Modal */}
-            {showProfileModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-                        {/* Header */}
-                        <div className="bg-gradient-to-br from-blue-600 to-blue-700 p-8 text-white relative">
-                            <button 
-                                onClick={() => setShowProfileModal(false)}
-                                className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 transition-colors"
-                            >
-                                <X size={18} />
-                            </button>
-                            <div className="flex flex-col items-center text-center">
-                                <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center text-blue-600 text-3xl font-bold shadow-xl mb-4 border-4 border-blue-400/30">
-                                    {profile?.nama?.charAt(0).toUpperCase()}
-                                </div>
-                                <h3 className="text-2xl font-bold">{profile?.nama}</h3>
-                                <p className="text-blue-100 font-semibold bg-white/10 px-4 py-1 rounded-full mt-2 text-xs uppercase tracking-widest">
-                                    {getRoleLabel(role)}
-                                </p>
-                            </div>
-                        </div>
 
-                        {/* Content */}
-                        <div className="p-8 space-y-6">
-                            <div className="grid grid-cols-1 gap-6">
-                                {/* Role Specific Fields */}
-                                {role === 'guru' && (
-                                    <ProfileField icon={<IdCard size={18} />} label="NIP" value={profile?.nip} />
-                                )}
-                                {role === 'siswa' && (
-                                    <>
-                                        <ProfileField icon={<Hash size={18} />} label="NISN" value={profile?.nisn} />
-                                        <ProfileField icon={<School size={18} />} label="Kelas" value={profile?.kelas} />
-                                        <ProfileField icon={<GraduationCap size={18} />} label="Konsentrasi Keahlian" value={profile?.konsentrasi_keahlian} />
-                                    </>
-                                )}
-
-                                {/* Common Fields */}
-                                <ProfileField icon={<Phone size={18} />} label="No. Telepon" value={profile?.no_telp} />
-                                <ProfileField icon={<MapPin size={18} />} label="Alamat" value={profile?.alamat} isAddress />
-                            </div>
-                        </div>
-
-                        {/* Footer */}
-                        <div className="p-6 bg-gray-50 border-t flex justify-center">
-                            <button 
-                                onClick={() => setShowProfileModal(false)}
-                                className="px-10 py-3 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm active:scale-95"
-                            >
-                                Tutup
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </header>
-    );
-}
-
-function ProfileField({ icon, label, value, isAddress = false }: { icon: React.ReactNode, label: string, value?: string | null, isAddress?: boolean }) {
-    return (
-        <div className="flex gap-4 group">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-100 transition-colors">
-                {icon}
-            </div>
-            <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">{label}</p>
-                <p className={`text-gray-800 font-semibold truncate ${isAddress ? 'text-sm whitespace-normal' : 'text-base'}`}>
-                    {value || <span className="text-gray-300 italic font-normal">Belum diatur</span>}
-                </p>
-            </div>
-        </div>
     );
 }

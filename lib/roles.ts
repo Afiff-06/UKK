@@ -39,7 +39,7 @@ export function getRoleLabel(role: string | null | undefined) {
     case "siswa":
       return "Siswa";
     default:
-      return "User";
+      return "Pengguna";
   }
 }
 
