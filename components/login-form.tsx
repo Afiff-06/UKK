@@ -111,13 +111,13 @@ export function LoginForm() {
             {/* Password */}
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password
+                Kata Sandi
               </label>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
                   id="password"
-                  placeholder="Masukkan password"
+                  placeholder="Masukkan Kata Sandi"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -166,7 +166,7 @@ export function LoginForm() {
 
           {/* Help Text */}
           <p className="text-center text-sm text-gray-500">
-            Gunakan username dan password yang terdaftar
+            Gunakan username dan kata sandi yang terdaftar
           </p>
         </div>
       </div>
