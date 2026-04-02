@@ -29,6 +29,12 @@ export function LoginForm() {
     setIsLoading(true);
     setError(null);
 
+    if (password.length < 5) {
+      setError("Kata sandi minimal 5 karakter.");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const normalizedUsername = normalizeUsername(username);
       const { data: account, error: accountError } = await supabase

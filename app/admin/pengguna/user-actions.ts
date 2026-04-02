@@ -221,12 +221,16 @@ function validateUserData(userData: SanitizedUserData, action: 'create' | 'updat
         throw new Error('Username wajib diisi.');
     }
 
-    if (action === 'create' && !userData.password) {
-        throw new Error('Password wajib diisi.');
+    if (action === 'create' && (!userData.password || userData.password.length < 5)) {
+        throw new Error('Password wajib diisi minimal 5 karakter untuk pengguna baru.');
     }
 
-    if ((userData.role === 'pegawai' || userData.role === 'guru') && !userData.nip) {
-        throw new Error('NIP wajib diisi untuk pegawai dan guru.');
+    if (action === 'update' && userData.password && userData.password.length < 5) {
+        throw new Error('Password baru minimal 5 karakter.');
+    }
+
+    if (userData.role === 'guru' && !userData.nip) {
+        throw new Error('NIP wajib diisi untuk guru.');
     }
 
     if (userData.nip && userData.nip.length !== 18) {

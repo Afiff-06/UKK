@@ -244,13 +244,18 @@ export default function ManajemenPengguna() {
             return false;
         }
 
-        if (!editUser && !formData.password) {
-            await showWarning("Perhatian", "Password wajib diisi untuk pengguna baru.");
+        if (!editUser && (!formData.password || formData.password.length < 5)) {
+            await showWarning("Perhatian", "Password wajib diisi minimal 5 karakter untuk pengguna baru.");
             return false;
         }
 
-        if (isStaffBorrowerRole && !formData.nip) {
-            await showWarning("Perhatian", "NIP wajib diisi untuk pegawai dan guru.");
+        if (editUser && formData.password && formData.password.length < 5) {
+            await showWarning("Perhatian", "Password baru minimal 5 karakter.");
+            return false;
+        }
+
+        if (selectedRole === "guru" && !formData.nip) {
+            await showWarning("Perhatian", "NIP wajib diisi untuk guru.");
             return false;
         }
 
@@ -637,7 +642,7 @@ export default function ManajemenPengguna() {
                                             <label className="block text-sm text-gray-500 mb-1">NIP</label>
                                             <input
                                                 className="w-full border rounded-xl px-4 py-3"
-                                                placeholder={isStaffBorrowerRole ? "NIP wajib 18 digit" : "NIP (opsional)"}
+                                                placeholder={selectedRole === "guru" ? "NIP wajib 18 digit" : "NIP (opsional)"}
                                                 maxLength={18}
                                                 value={formData.nip}
                                                 onChange={(event) => updateField("nip", normalizeDigitsOnly(event.target.value))}
