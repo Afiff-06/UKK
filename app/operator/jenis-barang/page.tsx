@@ -5,6 +5,7 @@ import { Plus, Search, X, Pencil, Trash2, Box, AlertCircle } from "lucide-react"
 import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
 import LoadingSpinner from "@/components/loading-spinner";
+import { showSuccess, showError, showConfirm } from "@/lib/swal";
 
 interface Jenis {
     id_jenis: string;
@@ -28,6 +29,11 @@ export default function JenisBarangPage() {
         nama_jenis: "",
         keterangan: "",
     });
+
+    const getWordCount = (text: string) => {
+        if (!text.trim()) return 0;
+        return text.trim().split(/\s+/).length;
+    };
 
     const fetchData = async () => {
         setLoading(true);
@@ -68,46 +74,76 @@ export default function JenisBarangPage() {
     };
 
     const handleSubmit = async () => {
+        if (saving) return;
         if (!formData.nama_jenis.trim()) {
             setError("Nama jenis wajib diisi.");
+            return;
+        }
+
+        if (getWordCount(formData.keterangan) > 500) {
+            setError("Keterangan tidak boleh lebih dari 500 kata.");
             return;
         }
         setSaving(true);
         setError(null);
         try {
             if (editItem) {
-                const { error } = await supabase
+                const { error: updateError } = await supabase
                     .from("jenis")
-                    .update({ nama_jenis: formData.nama_jenis, keterangan: formData.keterangan || null })
+                    .update({ 
+                        nama_jenis: formData.nama_jenis, 
+                        keterangan: formData.keterangan || null 
+                    })
                     .eq("id_jenis", editItem.id_jenis);
-                if (error) throw error;
+                if (updateError) throw updateError;
+                
+                await showSuccess('Berhasil!', 'Jenis barang berhasil diperbarui');
             } else {
-                const { data: maxKode } = await supabase
+                const { data: maxKode, error: selectError } = await supabase
                     .from("jenis")
                     .select("kode_jenis")
                     .order("kode_jenis", { ascending: false })
                     .limit(1);
+                
+                if (selectError) throw selectError;
+
                 const nextKode = (maxKode?.[0]?.kode_jenis || 0) + 1;
-                const { error } = await supabase
+                const { error: insertError } = await supabase
                     .from("jenis")
-                    .insert({ nama_jenis: formData.nama_jenis, keterangan: formData.keterangan || null, kode_jenis: nextKode });
-                if (error) throw error;
+                    .insert({ 
+                        nama_jenis: formData.nama_jenis, 
+                        keterangan: formData.keterangan || null, 
+                        kode_jenis: nextKode 
+                    });
+                if (insertError) throw insertError;
+                
+                await showSuccess('Berhasil!', 'Jenis barang baru berhasil ditambahkan');
             }
             closeModal();
             fetchData();
-        } catch (e: unknown) {
-            setError(e instanceof Error ? e.message : "Gagal menyimpan data.");
+        } catch (error: any) {
+            const errorMessage = error?.message || error?.details || (typeof error === 'string' ? error : "Gagal menyimpan data.");
+            setError(errorMessage);
+            await showError('Gagal', errorMessage);
         } finally {
             setSaving(false);
         }
     };
 
     const handleDelete = async (id: string, nama: string) => {
-        if (!confirm(`Hapus jenis "${nama}"? Pastikan tidak ada inventaris yang menggunakan jenis ini.`)) return;
+        const confirmed = await showConfirm(
+            `Hapus jenis "${nama}"?`,
+            "Pastikan tidak ada inventaris yang menggunakan jenis ini."
+        );
+        
+        if (!confirmed) return;
+        
         const { error } = await supabase.from("jenis").delete().eq("id_jenis", id);
         if (error) {
-            alert("Gagal menghapus. Mungkin jenis ini masih digunakan oleh inventaris.");
+            console.error('Delete error:', error);
+            await showError("Gagal", "Gagal menghapus. Mungkin jenis ini masih digunakan oleh inventaris.");
         } else {
+            await showSuccess("Terhapus!", `Jenis "${nama}" berhasil dihapus.`);
             fetchData();
         }
     };
@@ -263,11 +299,14 @@ export default function JenisBarangPage() {
                                     Keterangan <span className="text-gray-400 font-normal">(opsional)</span>
                                 </label>
                                 <textarea
-                                    className="w-full border rounded-xl px-4 py-3 h-24 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    className={`w-full border rounded-xl px-4 py-3 h-24 resize-none focus:outline-none focus:ring-2 focus:border-transparent ${getWordCount(formData.keterangan) > 500 ? 'border-red-500 focus:ring-red-500' : 'focus:ring-blue-500'}`}
                                     placeholder="Deskripsi singkat tentang jenis ini..."
                                     value={formData.keterangan}
                                     onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
                                 />
+                                <div className={`text-right text-xs mt-1 ${getWordCount(formData.keterangan) > 500 ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
+                                    {getWordCount(formData.keterangan)} / 500 kata
+                                </div>
                             </div>
                         </div>
 

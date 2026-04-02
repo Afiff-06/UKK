@@ -233,8 +233,8 @@ function validateUserData(userData: SanitizedUserData, action: 'create' | 'updat
         throw new Error('NIP wajib diisi untuk guru.');
     }
 
-    if (userData.nip && userData.nip.length !== 18) {
-        throw new Error('NIP harus tepat 18 digit.');
+    if (userData.role === 'guru' && userData.nip && userData.nip.length !== 18) {
+        throw new Error('NIP guru harus tepat 18 digit.');
     }
 
     if ((userData.role === 'pegawai' || userData.role === 'guru' || userData.role === 'siswa') && !userData.no_telp) {

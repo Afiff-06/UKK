@@ -91,7 +91,15 @@ export default function PeminjamanForm() {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                // Fetch inventaris
+                // Fetch all items that have non-Baik condition records
+                const { data: damagedRecords } = await supabase
+                    .from('inventaris')
+                    .select('nama')
+                    .neq('kondisi', 'Baik');
+                
+                const damagedNames = new Set((damagedRecords || []).map(r => r.nama));
+
+                // Fetch inventaris with 'Baik' condition
                 const { data: invData } = await supabase
                     .from('inventaris')
                     .select('id_inventaris, nama, jumlah, kode_inventaris')
@@ -99,13 +107,16 @@ export default function PeminjamanForm() {
                     .gt('jumlah', 0)
                     .order('nama');
 
+                // Filter out items that have any damaged record with the same name
+                const filteredInv = (invData || []).filter(item => !damagedNames.has(item.nama));
+
                 // Fetch borrower users from tb_user
                 const { data: usrData } = await supabase
                     .from('tb_user')
                     .select('id, nama, username, role')
                     .in('role', [...BORROWER_ROLES]);
 
-                if (invData) setInventaris(invData);
+                if (filteredInv) setInventaris(filteredInv);
                 if (usrData) setUsers(usrData);
 
                 if (borrowerMode && profile) {
@@ -126,11 +137,16 @@ export default function PeminjamanForm() {
         fetchData();
     }, [borrowerMode, profile, role, supabase]);
 
-    const updateQty = (id: string, delta: number) => {
+    const updateQty = (id: string, deltaOrValue: number, isAbsolute: boolean = false) => {
         setItems((prev) =>
             prev.map((item) =>
                 item.id_inventaris === id
-                    ? { ...item, qty: Math.max(1, Math.min(item.maxQty, item.qty + delta)) }
+                    ? {
+                        ...item,
+                        qty: isAbsolute
+                            ? Math.max(0, Math.min(item.maxQty, deltaOrValue))
+                            : Math.max(0, Math.min(item.maxQty, item.qty + deltaOrValue))
+                    }
                     : item
             )
         );
@@ -349,9 +365,16 @@ export default function PeminjamanForm() {
 
                                             <div className="col-span-3 flex items-center gap-2">
                                                 <div className="flex items-center border rounded-lg overflow-hidden">
-                                                    <button onClick={() => updateQty(item.id_inventaris, -1)} className="px-3 py-2 hover:bg-gray-100"><Minus size={14} /></button>
-                                                    <div className="px-4 font-medium">{item.qty}</div>
-                                                    <button onClick={() => updateQty(item.id_inventaris, 1)} className="px-3 py-2 hover:bg-gray-100"><Plus size={14} /></button>
+                                                    <button onClick={() => updateQty(item.id_inventaris, -1)} className="px-3 py-2 hover:bg-gray-100 transition-colors"><Minus size={14} /></button>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        max={item.maxQty}
+                                                        value={item.qty}
+                                                        onChange={(e) => updateQty(item.id_inventaris, parseInt(e.target.value) || 0, true)}
+                                                        className="w-12 text-center font-medium focus:outline-none border-x py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                    />
+                                                    <button onClick={() => updateQty(item.id_inventaris, 1)} className="px-3 py-2 hover:bg-gray-100 transition-colors"><Plus size={14} /></button>
                                                 </div>
                                             </div>
 

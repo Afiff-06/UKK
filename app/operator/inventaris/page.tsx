@@ -240,10 +240,13 @@ export default function InventarisPage() {
                                     <label className="block text-sm text-gray-500 mb-1">Jumlah</label>
                                     <input
                                         type="number"
-                                        min="1"
+                                        min="0"
                                         className="w-full border rounded-xl px-4 py-3"
                                         value={formData.jumlah}
-                                        onChange={(e) => setFormData({ ...formData, jumlah: parseInt(e.target.value) || 1 })}
+                                        onChange={(e) => {
+                                            const val = parseInt(e.target.value);
+                                            setFormData({ ...formData, jumlah: isNaN(val) ? 0 : val });
+                                        }}
                                     />
                                 </div>
                                 <div>

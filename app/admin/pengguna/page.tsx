@@ -259,8 +259,8 @@ export default function ManajemenPengguna() {
             return false;
         }
 
-        if (formData.nip && normalizeDigitsOnly(formData.nip).length !== 18) {
-            await showWarning("Perhatian", "NIP harus tepat 18 digit.");
+        if (selectedRole === "guru" && formData.nip && normalizeDigitsOnly(formData.nip).length !== 18) {
+            await showWarning("Perhatian", "NIP guru harus tepat 18 digit.");
             return false;
         }
 

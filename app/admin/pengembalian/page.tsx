@@ -36,6 +36,9 @@ interface Peminjaman {
     id: string;
     jumlah: number;
     status_pengembalian: DetailReturnStatus | null;
+    jumlah_baik?: number | null;
+    jumlah_rusak_ringan?: number | null;
+    jumlah_rusak_berat?: number | null;
     inventaris: {
       id_inventaris: string;
       nama: string;
@@ -63,7 +66,6 @@ export default function PengembalianPage() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [detailWorkflowSupported, setDetailWorkflowSupported] = useState(true);
   const [schemaNotice, setSchemaNotice] = useState<string | null>(null);
-
   const { profile } = useAuth();
   const supabase = createClient();
 
@@ -81,6 +83,9 @@ export default function PengembalianPage() {
               id,
               jumlah,
               status_pengembalian,
+              jumlah_baik,
+              jumlah_rusak_ringan,
+              jumlah_rusak_berat,
               inventaris:id_inventaris (id_inventaris, nama, kode_inventaris, jumlah)
             )
           `,
@@ -156,72 +161,102 @@ export default function PengembalianPage() {
     }
 
     const confirmed = await showConfirm(
-      "Konfirmasi Pengembalian?",
-      `${detail.inventaris.nama} akan ditandai sudah dikembalikan.`,
+      "Konfirmasi Verifikasi?",
+      `Verifikasi pengembalian ${detail.inventaris.nama} (${detail.jumlah} unit) sesuai kondisi yang dilaporkan peminjam?`,
       "Ya, Konfirmasi",
-      "Batal",
+      "Batal"
     );
 
     if (!confirmed) return;
 
+    // Use reported conditions or default to all Good if missing (legacy)
+    const counts = {
+      baik: detail.jumlah_baik ?? detail.jumlah,
+      rusak_ringan: detail.jumlah_rusak_ringan ?? 0,
+      rusak_berat: detail.jumlah_rusak_berat ?? 0
+    };
+
+    await confirmGranularReturn(loanId, detailId, counts);
+  };
+
+  const confirmGranularReturn = async (loanId: string, detailId: string, counts: { baik: number; rusak_ringan: number; rusak_berat: number }) => {
+    const loan = peminjaman.find((item) => item.id_peminjaman === loanId);
+    const detail = loan?.detail_peminjaman.find((item) => item.id === detailId);
+
+    if (!loan || !detail) return;
+
     setProcessingId(detailWorkflowSupported ? detailId : loanId);
     try {
-      if (!detailWorkflowSupported) {
-        for (const loanDetail of loan.detail_peminjaman) {
-          const { data: currentItem, error: fetchError } = await supabase
+      // 1. Process Inventory Updates for each condition
+      const conditions = [
+        { type: "Baik", count: counts.baik },
+        { type: "Rusak Ringan", count: counts.rusak_ringan },
+        { type: "Rusak Berat", count: counts.rusak_berat }
+      ];
+
+      for (const cond of conditions) {
+        if (cond.count <= 0) continue;
+
+        // Find matching inventory record
+        const { data: existingInv } = await supabase
+          .from("inventaris")
+          .select("id_inventaris, jumlah")
+          .eq("nama", detail.inventaris.nama)
+          .eq("kondisi", cond.type)
+          .maybeSingle();
+
+        if (existingInv) {
+          // Increment existing
+          const { error: updateError } = await supabase
             .from("inventaris")
-            .select("jumlah")
-            .eq("id_inventaris", loanDetail.inventaris.id_inventaris)
+            .update({ jumlah: (existingInv.jumlah || 0) + cond.count })
+            .eq("id_inventaris", existingInv.id_inventaris);
+          
+          if (updateError) throw updateError;
+        } else {
+          // Create new record for this condition
+          // Get original details first to copy them
+          const { data: originalInv } = await supabase
+            .from("inventaris")
+            .select("*")
+            .eq("id_inventaris", detail.inventaris.id_inventaris)
             .single();
-
-          if (fetchError || !currentItem) {
-            throw fetchError || new Error("Stok inventaris tidak ditemukan.");
+          
+          if (originalInv) {
+            const { error: insertError } = await supabase
+              .from("inventaris")
+              .insert({
+                ...originalInv,
+                id_inventaris: undefined, // Let DB generate new ID
+                kondisi: cond.type,
+                jumlah: cond.count,
+                tanggal_register: new Date().toISOString().split('T')[0]
+              });
+            
+            if (insertError) throw insertError;
           }
-
-          const { error: stockError } = await supabase
-            .from("inventaris")
-            .update({ jumlah: currentItem.jumlah + loanDetail.jumlah })
-            .eq("id_inventaris", loanDetail.inventaris.id_inventaris);
-
-          if (stockError) throw stockError;
         }
-      } else {
-        const { data: currentItem, error: fetchError } = await supabase
-          .from("inventaris")
-          .select("jumlah")
-          .eq("id_inventaris", detail.inventaris.id_inventaris)
-          .single();
-
-        if (fetchError || !currentItem) {
-          throw fetchError || new Error("Stok inventaris tidak ditemukan.");
-        }
-
-        const { error: stockError } = await supabase
-          .from("inventaris")
-          .update({ jumlah: currentItem.jumlah + detail.jumlah })
-          .eq("id_inventaris", detail.inventaris.id_inventaris);
-
-        if (stockError) throw stockError;
-
-        const confirmedAt = new Date().toISOString();
-        const { error: detailError } = await supabase
-          .from("detail_peminjaman")
-          .update({
-            status_pengembalian: "dikembalikan",
-            dikonfirmasi_pengembalian_pada: confirmedAt,
-          })
-          .eq("id", detailId);
-
-        if (detailError) throw detailError;
       }
 
-      const nextStatuses: DetailReturnStatus[] = detailWorkflowSupported
-        ? loan.detail_peminjaman.map((item) =>
-            item.id === detailId
-              ? "dikembalikan"
-              : item.status_pengembalian || "dipinjam",
-          )
-        : loan.detail_peminjaman.map(() => "dikembalikan");
+      // 2. Update detail_peminjaman with granular counts
+      const confirmedAt = new Date().toISOString();
+      const { error: detailError } = await supabase
+        .from("detail_peminjaman")
+        .update({
+          status_pengembalian: "dikembalikan",
+          dikonfirmasi_pengembalian_pada: confirmedAt,
+          jumlah_baik: counts.baik,
+          jumlah_rusak_ringan: counts.rusak_ringan,
+          jumlah_rusak_berat: counts.rusak_berat
+        })
+        .eq("id", detailId);
+
+      if (detailError) throw detailError;
+
+      // 3. Update overall loan status
+      const nextStatuses: DetailReturnStatus[] = loan.detail_peminjaman.map((item) =>
+        item.id === detailId ? "dikembalikan" : item.status_pengembalian || "dipinjam"
+      );
 
       const nextLoanStatus = deriveLoanStatusFromReturnDetails({
         detailStatuses: nextStatuses,
@@ -232,21 +267,16 @@ export default function PengembalianPage() {
 
       const { error: loanError } = await supabase
         .from("peminjaman")
-        .update({
-          status: nextLoanStatus,
-        })
+        .update({ status: nextLoanStatus })
         .eq("id_peminjaman", loanId);
 
       if (loanError) throw loanError;
 
-      await showSuccess("Berhasil!", "Pengembalian barang berhasil dikonfirmasi.");
+      await showSuccess("Berhasil!", "Pengembalian barang berhasil dikonfirmasi secara granular.");
       fetchPeminjaman();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error processing return:", error);
-      await showError(
-        "Gagal",
-        "Gagal memproses pengembalian per jenis barang. Silakan coba lagi.",
-      );
+      await showError("Gagal", error.message || "Gagal memproses pengembalian.");
     } finally {
       setProcessingId(null);
     }
@@ -510,57 +540,79 @@ export default function PengembalianPage() {
                                 return (
                                   <div
                                     key={detail.id}
-                                    className="flex items-center justify-between gap-4 rounded-2xl border border-gray-100 px-4 py-3"
+                                    className="flex flex-col gap-3 rounded-2xl border border-gray-100 px-4 py-3"
                                   >
-                                    <div className="space-y-2">
-                                      <div className="flex items-center gap-2">
-                                        <span className="font-bold text-gray-800">
-                                          {detail.inventaris?.nama}
-                                        </span>
-                                        <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-bold">
-                                          x{detail.jumlah}
-                                        </span>
+                                    <div className="flex items-center justify-between gap-4">
+                                      <div className="space-y-2">
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-bold text-gray-800">
+                                            {detail.inventaris?.nama}
+                                          </span>
+                                          <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-bold">
+                                            x{detail.jumlah}
+                                          </span>
+                                        </div>
+                                        {getDetailStatusBadge(
+                                          detail.status_pengembalian,
+                                          overdue,
+                                        )}
                                       </div>
-                                      {getDetailStatusBadge(
-                                        detail.status_pengembalian,
-                                        overdue,
-                                      )}
+                                      <div className="flex justify-end min-w-[172px]">
+                                        {showActionButton ? (
+                                          <button
+                                            onClick={() =>
+                                              handleReturn(item.id_peminjaman, detail.id)
+                                            }
+                                            disabled={
+                                              processingId ===
+                                              (detailWorkflowSupported ? detail.id : item.id_peminjaman)
+                                            }
+                                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all font-semibold shadow-md shadow-green-100 disabled:opacity-50"
+                                          >
+                                            {processingId ===
+                                            (detailWorkflowSupported ? detail.id : item.id_peminjaman) ? (
+                                              <LoadingSpinner size="sm" />
+                                            ) : (
+                                              <CheckCircle size={16} />
+                                            )}
+                                            {detailWorkflowSupported
+                                              ? "Konfirmasi"
+                                              : "Konfirmasi Transaksi"}
+                                          </button>
+                                        ) : (
+                                          <span className="text-gray-400 text-sm italic font-medium">
+                                            {!detailWorkflowSupported &&
+                                            item.status === "konfirmasi_pengembalian"
+                                              ? "Ikuti transaksi"
+                                              : normalizeDetailStatus(
+                                                    detail.status_pengembalian,
+                                                  ) === "dikembalikan"
+                                              ? "Selesai"
+                                              : "Belum diajukan"}
+                                          </span>
+                                        )}
+                                      </div>
                                     </div>
-                                    <div className="flex justify-end min-w-[172px]">
-                                      {showActionButton ? (
-                                        <button
-                                          onClick={() =>
-                                            handleReturn(item.id_peminjaman, detail.id)
-                                          }
-                                          disabled={
-                                            processingId ===
-                                            (detailWorkflowSupported ? detail.id : item.id_peminjaman)
-                                          }
-                                          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all font-semibold shadow-md shadow-green-100 disabled:opacity-50"
-                                        >
-                                          {processingId ===
-                                          (detailWorkflowSupported ? detail.id : item.id_peminjaman) ? (
-                                            <LoadingSpinner size="sm" />
-                                          ) : (
-                                            <CheckCircle size={16} />
-                                          )}
-                                          {detailWorkflowSupported
-                                            ? "Konfirmasi"
-                                            : "Konfirmasi Transaksi"}
-                                        </button>
-                                      ) : (
-                                        <span className="text-gray-400 text-sm italic font-medium">
-                                          {!detailWorkflowSupported &&
-                                          item.status === "konfirmasi_pengembalian"
-                                            ? "Ikuti transaksi"
-                                            : normalizeDetailStatus(
-                                                  detail.status_pengembalian,
-                                                ) === "dikembalikan"
-                                            ? "Selesai"
-                                            : "Belum diajukan"}
-                                        </span>
-                                      )}
-                                    </div>
+                                    
+                                    {(detail.jumlah_baik || detail.jumlah_rusak_ringan || detail.jumlah_rusak_berat) ? (
+                                      <div className="mt-2 flex flex-wrap gap-2 border-t pt-2 border-gray-50">
+                                        {detail.jumlah_baik ? (
+                                          <span className="text-[10px] bg-green-50 text-green-600 px-2 py-0.5 rounded-full font-bold">
+                                            {detail.jumlah_baik} Baik
+                                          </span>
+                                        ) : null}
+                                        {detail.jumlah_rusak_ringan ? (
+                                          <span className="text-[10px] bg-yellow-50 text-yellow-600 px-2 py-0.5 rounded-full font-bold">
+                                            {detail.jumlah_rusak_ringan} Rusak Ringan
+                                          </span>
+                                        ) : null}
+                                        {detail.jumlah_rusak_berat ? (
+                                          <span className="text-[10px] bg-red-50 text-red-600 px-2 py-0.5 rounded-full font-bold">
+                                            {detail.jumlah_rusak_berat} Rusak Berat
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                    ) : null}
                                   </div>
                                 );
                               })}

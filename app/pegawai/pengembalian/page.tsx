@@ -34,6 +34,9 @@ interface Peminjaman {
     id: string;
     jumlah: number;
     status_pengembalian: DetailReturnStatus | null;
+    jumlah_baik: number | null;
+    jumlah_rusak_ringan: number | null;
+    jumlah_rusak_berat: number | null;
     inventaris:
       | { nama: string; kode_inventaris: number }
       | { nama: string; kode_inventaris: number }[];
@@ -76,6 +79,9 @@ export default function PengembalianPage() {
               id,
               jumlah,
               status_pengembalian,
+              jumlah_baik,
+              jumlah_rusak_ringan,
+              jumlah_rusak_berat,
               inventaris:id_inventaris (nama, kode_inventaris)
             )
           `,
@@ -398,19 +404,42 @@ export default function PengembalianPage() {
                               return (
                                 <div
                                   key={detail.id}
-                                  className="flex items-center justify-between gap-4 rounded-2xl border border-gray-100 px-4 py-3"
+                                  className="flex flex-col gap-2 rounded-2xl border border-gray-100 px-4 py-3"
                                 >
-                                  <div className="flex items-center gap-3">
-                                    <span className="text-gray-800 font-medium">
-                                      {inv?.nama}
-                                    </span>
-                                    <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">
-                                      x{detail.jumlah}
-                                    </span>
+                                  <div className="flex items-center justify-between gap-4">
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-gray-800 font-medium">
+                                        {inv?.nama}
+                                      </span>
+                                      <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">
+                                        x{detail.jumlah}
+                                      </span>
+                                    </div>
+                                    {getDetailStatusBadge(
+                                      detail.status_pengembalian,
+                                      overdue,
+                                    )}
                                   </div>
-                                  {getDetailStatusBadge(
-                                    detail.status_pengembalian,
-                                    overdue,
+                                  
+                                  {(detail.jumlah_baik !== null || detail.jumlah_rusak_ringan !== null || detail.jumlah_rusak_berat !== null) && 
+                                   (detail.jumlah_baik! > 0 || detail.jumlah_rusak_ringan! > 0 || detail.jumlah_rusak_berat! > 0) && (
+                                    <div className="mt-1 flex flex-wrap gap-2 border-t pt-2 border-gray-50">
+                                      {detail.jumlah_baik ? (
+                                        <span className="text-[10px] bg-green-50 text-green-600 px-2 py-0.5 rounded-full font-bold">
+                                          {detail.jumlah_baik} Baik
+                                        </span>
+                                      ) : null}
+                                      {detail.jumlah_rusak_ringan ? (
+                                        <span className="text-[10px] bg-yellow-50 text-yellow-600 px-2 py-0.5 rounded-full font-bold">
+                                          {detail.jumlah_rusak_ringan} Rusak Ringan
+                                        </span>
+                                      ) : null}
+                                      {detail.jumlah_rusak_berat ? (
+                                        <span className="text-[10px] bg-red-50 text-red-600 px-2 py-0.5 rounded-full font-bold">
+                                          {detail.jumlah_rusak_berat} Rusak Berat
+                                        </span>
+                                      ) : null}
+                                    </div>
                                   )}
                                 </div>
                               );

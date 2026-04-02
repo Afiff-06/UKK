@@ -5,6 +5,7 @@ import { Plus, Search, X, Pencil, Trash2, HomeIcon, AlertCircle } from "lucide-r
 import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
 import LoadingSpinner from "@/components/loading-spinner";
+import { showSuccess, showError, showConfirm } from "@/lib/swal";
 
 interface Ruang {
     id_ruang: string;
@@ -28,6 +29,11 @@ export default function RuangBarangPage() {
         nama_ruang: "",
         keterangan: "",
     });
+
+    const getWordCount = (text: string) => {
+        if (!text.trim()) return 0;
+        return text.trim().split(/\s+/).length;
+    };
 
     const fetchData = async () => {
         setLoading(true);
@@ -68,46 +74,76 @@ export default function RuangBarangPage() {
     };
 
     const handleSubmit = async () => {
+        if (saving) return;
         if (!formData.nama_ruang.trim()) {
             setError("Nama ruang wajib diisi.");
+            return;
+        }
+
+        if (getWordCount(formData.keterangan) > 500) {
+            setError("Keterangan tidak boleh lebih dari 500 kata.");
             return;
         }
         setSaving(true);
         setError(null);
         try {
             if (editItem) {
-                const { error } = await supabase
+                const { error: updateError } = await supabase
                     .from("ruang")
-                    .update({ nama_ruang: formData.nama_ruang, keterangan: formData.keterangan || null })
+                    .update({ 
+                        nama_ruang: formData.nama_ruang, 
+                        keterangan: formData.keterangan || null 
+                    })
                     .eq("id_ruang", editItem.id_ruang);
-                if (error) throw error;
+                if (updateError) throw updateError;
+                
+                await showSuccess('Berhasil!', 'Ruang barang berhasil diperbarui');
             } else {
-                const { data: maxKode } = await supabase
+                const { data: maxKode, error: selectError } = await supabase
                     .from("ruang")
                     .select("kode_ruang")
                     .order("kode_ruang", { ascending: false })
                     .limit(1);
+                
+                if (selectError) throw selectError;
+
                 const nextKode = (maxKode?.[0]?.kode_ruang || 0) + 1;
-                const { error } = await supabase
+                const { error: insertError } = await supabase
                     .from("ruang")
-                    .insert({ nama_ruang: formData.nama_ruang, keterangan: formData.keterangan || null, kode_ruang: nextKode });
-                if (error) throw error;
+                    .insert({ 
+                        nama_ruang: formData.nama_ruang, 
+                        keterangan: formData.keterangan || null, 
+                        kode_ruang: nextKode 
+                    });
+                if (insertError) throw insertError;
+                
+                await showSuccess('Berhasil!', 'Ruang barang baru berhasil ditambahkan');
             }
             closeModal();
             fetchData();
-        } catch (e: unknown) {
-            setError(e instanceof Error ? e.message : "Gagal menyimpan data.");
+        } catch (error: any) {
+            const errorMessage = error?.message || error?.details || (typeof error === 'string' ? error : "Gagal menyimpan data.");
+            setError(errorMessage);
+            await showError('Gagal', errorMessage);
         } finally {
             setSaving(false);
         }
     };
 
     const handleDelete = async (id: string, nama: string) => {
-        if (!confirm(`Hapus ruang "${nama}"? Pastikan tidak ada inventaris yang berada di ruang ini.`)) return;
+        const confirmed = await showConfirm(
+            `Hapus ruang "${nama}"?`,
+            "Pastikan tidak ada inventaris yang berada di ruang ini."
+        );
+        
+        if (!confirmed) return;
+        
         const { error } = await supabase.from("ruang").delete().eq("id_ruang", id);
         if (error) {
-            alert("Gagal menghapus. Mungkin ruang ini masih digunakan oleh inventaris.");
+            console.error('Delete error:', error);
+            await showError("Gagal", "Gagal menghapus. Mungkin ruang ini masih digunakan oleh inventaris.");
         } else {
+            await showSuccess("Terhapus!", `Ruang "${nama}" berhasil dihapus.`);
             fetchData();
         }
     };
@@ -263,11 +299,14 @@ export default function RuangBarangPage() {
                                     Keterangan <span className="text-gray-400 font-normal">(opsional)</span>
                                 </label>
                                 <textarea
-                                    className="w-full border rounded-xl px-4 py-3 h-24 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    className={`w-full border rounded-xl px-4 py-3 h-24 resize-none focus:outline-none focus:ring-2 focus:border-transparent ${getWordCount(formData.keterangan) > 500 ? 'border-red-500 focus:ring-red-500' : 'focus:ring-blue-500'}`}
                                     placeholder="Informasi tambahan tentang lokasi ruang ini..."
                                     value={formData.keterangan}
                                     onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
                                 />
+                                <div className={`text-right text-xs mt-1 ${getWordCount(formData.keterangan) > 500 ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
+                                    {getWordCount(formData.keterangan)} / 500 kata
+                                </div>
                             </div>
                         </div>
 

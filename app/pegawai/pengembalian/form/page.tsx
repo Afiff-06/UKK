@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   Check,
   Clock,
+  ClipboardCheck,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -23,7 +24,8 @@ import {
   isMissingDetailReturnColumnsError,
   type DetailReturnStatus,
 } from "@/lib/return-workflow";
-import { showConfirm, showError, showSuccess } from "@/lib/swal";
+import { showConfirm, showError, showSuccess, showWarning } from "@/lib/swal";
+import ReturnConditionModal from "@/components/return-condition-modal";
 
 interface Peminjaman {
   id_peminjaman: string;
@@ -60,6 +62,10 @@ export default function PengembalianForm() {
   const [searchQuery, setSearchQuery] = useState("");
   const [detailWorkflowSupported, setDetailWorkflowSupported] = useState(true);
   const [schemaNotice, setSchemaNotice] = useState<string | null>(null);
+
+  // Condition counts state
+  const [itemConditions, setItemConditions] = useState<Record<string, { baik: number, rusak_ringan: number, rusak_berat: number }>>({});
+  const [modalItem, setModalItem] = useState<{ id: string, nama: string, jumlah: number } | null>(null);
 
   const router = useRouter();
   const { profile } = useAuth();
@@ -190,9 +196,35 @@ export default function PengembalianForm() {
       return;
     }
 
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((itemId) => itemId !== id) : [...prev, id],
-    );
+    setSelectedIds((prev) => {
+      const isRemoving = prev.includes(id);
+      const next = isRemoving ? prev.filter((itemId) => itemId !== id) : [...prev, id];
+      
+      // Cleanup condition state if removing
+      if (isRemoving) {
+        setItemConditions(current => {
+          const updated = { ...current };
+          delete updated[id];
+          return updated;
+        });
+      }
+      
+      return next;
+    });
+  };
+
+  const openConditionModal = (id: string, nama: string, jumlah: number) => {
+    setModalItem({ id, nama, jumlah });
+  };
+
+  const handleConditionConfirm = async (counts: { baik: number; rusak_ringan: number; rusak_berat: number }) => {
+    if (!modalItem) return;
+    
+    setItemConditions(prev => ({
+      ...prev,
+      [modalItem.id]: counts
+    }));
+    setModalItem(null);
   };
 
   const returnableDetails: ReturnableDetailRow[] = peminjaman.flatMap((item) =>
@@ -254,9 +286,18 @@ export default function PengembalianForm() {
 
     if (!confirmed) return;
 
+    // Check if all selected items have conditions set
+    const missingConditions = selectedDetails.filter(d => !itemConditions[d.id]);
+    if (missingConditions.length > 0) {
+      await showWarning("Perhatian", "Harap atur kondisi untuk semua barang yang akan dikembalikan.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       if (!detailWorkflowSupported) {
+        // Legacy mode doesn't support granular conditions easily, 
+        // but we'll still update the loan status
         const { error } = await supabase
           .from("peminjaman")
           .update({ status: "konfirmasi_pengembalian" })
@@ -264,15 +305,22 @@ export default function PengembalianForm() {
 
         if (error) throw error;
       } else {
-        const { error } = await supabase
-          .from("detail_peminjaman")
-          .update({
-            status_pengembalian: "konfirmasi_pengembalian",
-            diajukan_pengembalian_pada: new Date().toISOString(),
-          })
-          .in("id", selectedIds);
+        // Update each detail with its reported condition
+        for (const detailId of selectedIds) {
+          const condition = itemConditions[detailId];
+          const { error } = await supabase
+            .from("detail_peminjaman")
+            .update({
+              status_pengembalian: "konfirmasi_pengembalian",
+              diajukan_pengembalian_pada: new Date().toISOString(),
+              jumlah_baik: condition.baik,
+              jumlah_rusak_ringan: condition.rusak_ringan,
+              jumlah_rusak_berat: condition.rusak_berat
+            })
+            .eq("id", detailId);
 
-        if (error) throw error;
+          if (error) throw error;
+        }
 
         for (const loanId of affectedLoanIds) {
           const loan = peminjaman.find((item) => item.id_peminjaman === loanId);
@@ -470,9 +518,29 @@ export default function PengembalianForm() {
                             </div>
                           </td>
                           <td className="px-8 py-5">
-                            <span className="flex items-center gap-2 px-3 py-1 bg-green-50 text-green-700 rounded-full text-sm font-medium w-fit">
-                              <Clock size={14} /> Siap Diajukan
-                            </span>
+                            <div className="flex items-center gap-3">
+                              <span className="flex items-center gap-2 px-3 py-1 bg-green-50 text-green-700 rounded-full text-sm font-medium w-fit">
+                                <Clock size={14} /> Siap Diajukan
+                              </span>
+                              
+                              {isSelected && detailWorkflowSupported && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openConditionModal(detail.id, detail.inventaris?.nama || "Barang", detail.jumlah);
+                                  }}
+                                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all ${
+                                    itemConditions[detail.id] 
+                                      ? "bg-blue-600 text-white shadow-md shadow-blue-100" 
+                                      : "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                                  }`}
+                                >
+                                  {itemConditions[detail.id] ? <ClipboardCheck size={14} /> : <AlertTriangle size={14} />}
+                                  {itemConditions[detail.id] ? "Kondisi Diatur" : "Atur Kondisi"}
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -524,6 +592,16 @@ export default function PengembalianForm() {
             </div>
           </div>
         </div>
+
+        {modalItem && (
+          <ReturnConditionModal
+            isOpen={!!modalItem}
+            onClose={() => setModalItem(null)}
+            onConfirm={handleConditionConfirm}
+            itemName={modalItem.nama}
+            totalQuantity={modalItem.jumlah}
+          />
+        )}
       </main>
     </div>
   );
