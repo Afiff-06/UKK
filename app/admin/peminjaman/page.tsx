@@ -411,9 +411,9 @@ export default function PeminjamanPage() {
                                                                         <span className="text-sm font-medium">{detail.inventaris?.nama}</span>
                                                                         {(detail.jumlah_baik || detail.jumlah_rusak_ringan || detail.jumlah_rusak_berat) ? (
                                                                             <div className="flex gap-1 mt-0.5">
-                                                                                {detail.jumlah_baik ? <span className="text-[9px] bg-green-50 text-green-600 px-1.5 py-0.5 rounded font-bold">{detail.jumlah_baik} B</span> : null}
-                                                                                {detail.jumlah_rusak_ringan ? <span className="text-[9px] bg-yellow-50 text-yellow-600 px-1.5 py-0.5 rounded font-bold">{detail.jumlah_rusak_ringan} RR</span> : null}
-                                                                                {detail.jumlah_rusak_berat ? <span className="text-[9px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded font-bold">{detail.jumlah_rusak_berat} RB</span> : null}
+                                                                                {detail.jumlah_baik ? <span className="text-[9px] bg-green-50 text-green-600 px-1.5 py-0.5 rounded font-bold">{detail.jumlah_baik} Baik</span> : null}
+                                                                                {detail.jumlah_rusak_ringan ? <span className="text-[9px] bg-yellow-50 text-yellow-600 px-1.5 py-0.5 rounded font-bold">{detail.jumlah_rusak_ringan} Rusak Ringan</span> : null}
+                                                                                {detail.jumlah_rusak_berat ? <span className="text-[9px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded font-bold">{detail.jumlah_rusak_berat} Rusak Berat</span> : null}
                                                                             </div>
                                                                         ) : null}
                                                                     </div>
