@@ -21,6 +21,8 @@ interface InventarisTableProps {
     onSearchChange: (value: string) => void;
     filterKondisi: string;
     onFilterKondisiChange: (value: string) => void;
+    sourceFilter: "utama" | "kembali";
+    onSourceFilterChange: (value: "utama" | "kembali") => void;
     mode: "manage" | "readOnly";
     onAdd?: () => void;
     onEdit?: (item: InventarisTableItem) => void;
@@ -60,6 +62,8 @@ export default function InventarisTable({
     onSearchChange,
     filterKondisi,
     onFilterKondisiChange,
+    sourceFilter,
+    onSourceFilterChange,
     mode,
     onAdd,
     onEdit,
@@ -69,7 +73,12 @@ export default function InventarisTable({
         const matchSearch = item.nama.toLowerCase().includes(searchQuery.toLowerCase())
             || item.kode_inventaris.toString().includes(searchQuery);
         const matchKondisi = !filterKondisi || item.kondisi === filterKondisi;
-        return matchSearch && matchKondisi;
+        
+        // Source filtering logic
+        const isKembali = item.keterangan?.startsWith("**[KEMBALI]**");
+        const matchSource = sourceFilter === "kembali" ? isKembali : !isKembali;
+        
+        return matchSearch && matchKondisi && matchSource;
     });
 
     return (
@@ -86,6 +95,29 @@ export default function InventarisTable({
                         <option value="Rusak Ringan">Rusak Ringan</option>
                         <option value="Rusak Berat">Rusak Berat</option>
                     </select>
+
+                    <div className="flex bg-gray-100 p-1 rounded-xl">
+                        <button
+                            onClick={() => onSourceFilterChange("utama")}
+                            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                                sourceFilter === "utama"
+                                    ? "bg-white text-blue-600 shadow-sm"
+                                    : "text-gray-500 hover:text-gray-700"
+                            }`}
+                        >
+                            Stok Utama
+                        </button>
+                        <button
+                            onClick={() => onSourceFilterChange("kembali")}
+                            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                                sourceFilter === "kembali"
+                                    ? "bg-white text-blue-600 shadow-sm"
+                                    : "text-gray-500 hover:text-gray-700"
+                            }`}
+                        >
+                            Barang Kembali
+                        </button>
+                    </div>
                 </div>
 
                 <div className="flex gap-3 items-center">
@@ -132,6 +164,7 @@ export default function InventarisTable({
                                 <th className="px-6 py-4 text-center">Stok</th>
                                 <th className="px-6 py-4 text-left">Kondisi</th>
                                 {mode === "manage" && <th className="px-6 py-4 text-left">Aksi</th>}
+                                {sourceFilter === "kembali" && <th className="px-6 py-4 text-left">Dikembalikan Oleh</th>}
                             </tr>
                         </thead>
 
@@ -191,6 +224,18 @@ export default function InventarisTable({
                                                 >
                                                     <Trash2 size={14} />
                                                 </button>
+                                            </div>
+                                        </td>
+                                    )}
+                                    {sourceFilter === "kembali" && (
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center text-[10px] font-bold text-blue-600 border border-blue-100">
+                                                    {item.keterangan?.split("Oleh: ")[1]?.charAt(0) || "?"}
+                                                </div>
+                                                <span className="font-medium text-gray-700">
+                                                    {item.keterangan?.split("Oleh: ")[1] || "-"}
+                                                </span>
                                             </div>
                                         </td>
                                     )}

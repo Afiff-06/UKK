@@ -543,9 +543,6 @@ export default function ManajemenPengguna() {
                                         value={formData.username}
                                         onChange={(event) => updateField("username", event.target.value.toLowerCase())}
                                     />
-                                    <p className="text-xs text-gray-400 mt-1">
-                                        Email login internal dibuat otomatis dari nama pengguna.
-                                    </p>
                                 </div>
                                 <div>
                                     <label className="block text-sm text-gray-500 mb-1">Peran</label>

@@ -186,12 +186,16 @@ export default function PengembalianPage() {
       for (const cond of conditions) {
         if (cond.count <= 0) continue;
 
-        // Find matching inventory record
+        // Find matching inventory record specifically in the "Barang Kembali" pool for this specific borrower
+        const borrowerName = loan.pegawai?.nama || "Anonim";
+        const returnKeterangan = `**[KEMBALI]** Oleh: ${borrowerName}`;
+
         const { data: existingInv } = await supabase
           .from("inventaris")
           .select("id_inventaris, jumlah")
           .eq("nama", detail.inventaris.nama)
           .eq("kondisi", cond.type)
+          .eq("keterangan", returnKeterangan)
           .maybeSingle();
 
         if (existingInv) {
@@ -216,6 +220,7 @@ export default function PengembalianPage() {
               id_inventaris: undefined,
               kondisi: cond.type,
               jumlah: cond.count,
+              keterangan: returnKeterangan,
               tanggal_register: new Date().toISOString().split("T")[0],
             });
 

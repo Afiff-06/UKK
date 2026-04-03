@@ -61,6 +61,7 @@ export default function InventarisPage() {
     const [editItem, setEditItem] = useState<Inventaris | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [filterKondisi, setFilterKondisi] = useState("");
+    const [sourceFilter, setSourceFilter] = useState<"utama" | "kembali">("utama");
 
     const [formData, setFormData] = useState({
         nama: "",
@@ -138,7 +139,7 @@ export default function InventarisPage() {
                         nama: formData.nama,
                         jumlah: formData.jumlah,
                         kondisi: formData.kondisi,
-                        keterangan: formData.keterangan,
+                        keterangan: formData.keterangan || "",
                         id_jenis: formData.id_jenis || null,
                         id_ruang: formData.id_ruang || null,
                         kode_inventaris: nextKode,
@@ -223,10 +224,12 @@ export default function InventarisPage() {
                         onSearchChange={setSearchQuery}
                         filterKondisi={filterKondisi}
                         onFilterKondisiChange={setFilterKondisi}
-                        mode="manage"
-                        onAdd={openAddModal}
-                        onEdit={handleEdit}
-                        onDelete={handleDelete}
+                        sourceFilter={sourceFilter}
+                        onSourceFilterChange={setSourceFilter}
+                        mode={sourceFilter === "utama" ? "manage" : "readOnly"}
+                        onAdd={sourceFilter === "utama" ? openAddModal : undefined}
+                        onEdit={sourceFilter === "utama" ? handleEdit : undefined}
+                        onDelete={sourceFilter === "utama" ? handleDelete : undefined}
                     />
                 </div>
             </main>
