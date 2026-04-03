@@ -27,14 +27,30 @@ interface InventarisTableProps {
     onDelete?: (id: string) => void;
 }
 
-const getKondisiBadge = (kondisi: string) => {
-    const colors: Record<string, string> = {
-        Baik: "bg-green-100 text-green-700",
-        "Rusak Ringan": "bg-yellow-100 text-yellow-700",
-        "Rusak Berat": "bg-red-100 text-red-700",
+const getKondisiBadgeStyles = (kondisi: string) => {
+    const styles: Record<string, { bg: string, text: string, dot: string }> = {
+        Baik: { 
+            bg: "bg-emerald-50", 
+            text: "text-emerald-700 border-emerald-100", 
+            dot: "bg-emerald-500" 
+        },
+        "Rusak Ringan": { 
+            bg: "bg-amber-50", 
+            text: "text-amber-700 border-amber-100", 
+            dot: "bg-amber-500" 
+        },
+        "Rusak Berat": { 
+            bg: "bg-rose-50", 
+            text: "text-rose-700 border-rose-100", 
+            dot: "bg-rose-500" 
+        },
     };
 
-    return colors[kondisi] || "bg-gray-100 text-gray-700";
+    return styles[kondisi] || { 
+        bg: "bg-gray-50", 
+        text: "text-gray-700 border-gray-100", 
+        dot: "bg-gray-500" 
+    };
 };
 
 export default function InventarisTable({
@@ -150,9 +166,15 @@ export default function InventarisTable({
                                         </span>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <span className={`px-3 py-1 rounded-full text-sm ${getKondisiBadge(item.kondisi)}`}>
-                                            {item.kondisi}
-                                        </span>
+                                        {(() => {
+                                            const s = getKondisiBadgeStyles(item.kondisi);
+                                            return (
+                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${s.bg} ${s.text}`}>
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+                                                    {item.kondisi}
+                                                </span>
+                                            );
+                                        })()}
                                     </td>
                                     {mode === "manage" && (
                                         <td className="px-6 py-4">

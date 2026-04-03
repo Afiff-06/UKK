@@ -600,6 +600,7 @@ export default function PengembalianForm() {
             onConfirm={handleConditionConfirm}
             itemName={modalItem.nama}
             totalQuantity={modalItem.jumlah}
+            initialCounts={itemConditions[modalItem.id]}
           />
         )}
       </main>

@@ -26,6 +26,32 @@ interface Ruang {
     nama_ruang: string;
 }
 
+const getKondisiBadgeStyles = (kondisi: string) => {
+    const styles: Record<string, { bg: string, text: string, dot: string }> = {
+        Baik: { 
+            bg: "bg-emerald-50", 
+            text: "text-emerald-700 border-emerald-100", 
+            dot: "bg-emerald-500" 
+        },
+        "Rusak Ringan": { 
+            bg: "bg-amber-50", 
+            text: "text-amber-700 border-amber-100", 
+            dot: "bg-amber-500" 
+        },
+        "Rusak Berat": { 
+            bg: "bg-rose-50", 
+            text: "text-rose-700 border-rose-100", 
+            dot: "bg-rose-500" 
+        },
+    };
+
+    return styles[kondisi] || { 
+        bg: "bg-gray-50", 
+        text: "text-gray-700 border-gray-100", 
+        dot: "bg-gray-500" 
+    };
+};
+
 export default function InventarisPage() {
     const [items, setItems] = useState<Inventaris[]>([]);
     const [jenisList, setJenisList] = useState<Jenis[]>([]);
@@ -46,7 +72,7 @@ export default function InventarisPage() {
     });
 
     const supabase = createClient();
-    const { user } = useAuth()
+    const { user, role } = useAuth()
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -251,15 +277,30 @@ export default function InventarisPage() {
                                 </div>
                                 <div>
                                     <label className="block text-sm text-gray-500 mb-1">Kondisi</label>
-                                    <select
-                                        className="w-full border rounded-xl px-4 py-3"
-                                        value={formData.kondisi}
-                                        onChange={(e) => setFormData({ ...formData, kondisi: e.target.value })}
-                                    >
-                                        <option value="Baik">Baik</option>
-                                        <option value="Rusak Ringan">Rusak Ringan</option>
-                                        <option value="Rusak Berat">Rusak Berat</option>
-                                    </select>
+                                    {!editItem ? (
+                                        <select
+                                            className="w-full border rounded-xl px-4 py-3 bg-white"
+                                            value={formData.kondisi}
+                                            onChange={(e) => setFormData({ ...formData, kondisi: e.target.value })}
+                                        >
+                                            <option value="Baik">Baik</option>
+                                            <option value="Rusak Ringan">Rusak Ringan</option>
+                                            <option value="Rusak Berat">Rusak Berat</option>
+                                        </select>
+                                    ) : (
+                                        <div className={`w-full border rounded-xl px-4 py-3 bg-gray-50 flex items-center`}>
+                                            {(() => {
+                                                const s = getKondisiBadgeStyles(formData.kondisi);
+                                                return (
+                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${s.bg} ${s.text}`}>
+                                                        <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+                                                        {formData.kondisi}
+                                                    </span>
+                                                );
+                                            })()}
+                                            <span className="ml-auto text-[10px] text-gray-400 font-bold uppercase tracking-wider">Tetap</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 

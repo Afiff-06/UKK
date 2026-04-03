@@ -13,6 +13,7 @@ import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import LoadingSpinner from "@/components/loading-spinner";
+import ReturnConditionModal from "@/components/return-condition-modal";
 import { isPastDueDate } from "@/lib/peminjaman-status";
 import { showSuccess, showError, showConfirm } from "@/lib/swal";
 import { formatBorrowerIdentity } from "@/lib/roles";
@@ -66,6 +67,8 @@ export default function PengembalianPage() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [detailWorkflowSupported, setDetailWorkflowSupported] = useState(true);
   const [schemaNotice, setSchemaNotice] = useState<string | null>(null);
+  const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+  const [selectedReturn, setSelectedReturn] = useState<{ loanId: string; detail: any } | null>(null);
 
   const { profile } = useAuth();
   const supabase = createClient();
@@ -161,23 +164,8 @@ export default function PengembalianPage() {
       return;
     }
 
-    const confirmed = await showConfirm(
-      "Konfirmasi Verifikasi?",
-      `Verifikasi pengembalian ${detail.inventaris.nama} (${detail.jumlah} unit) sesuai kondisi yang dilaporkan peminjam?`,
-      "Ya, Konfirmasi",
-      "Batal"
-    );
-
-    if (!confirmed) return;
-
-    // Use reported conditions or default to all Good if missing (legacy)
-    const counts = {
-      baik: detail.jumlah_baik ?? detail.jumlah,
-      rusak_ringan: detail.jumlah_rusak_ringan ?? 0,
-      rusak_berat: detail.jumlah_rusak_berat ?? 0
-    };
-
-    await confirmGranularReturn(loanId, detailId, counts);
+    setSelectedReturn({ loanId, detail });
+    setIsReturnModalOpen(true);
   };
 
   const confirmGranularReturn = async (loanId: string, detailId: string, counts: { baik: number; rusak_ringan: number; rusak_berat: number }) => {
@@ -638,6 +626,23 @@ export default function PengembalianPage() {
         </div>
       </main>
 
+      {selectedReturn && (
+        <ReturnConditionModal
+          isOpen={isReturnModalOpen}
+          onClose={() => setIsReturnModalOpen(false)}
+          onConfirm={async (counts) => {
+            await confirmGranularReturn(selectedReturn.loanId, selectedReturn.detail.id, counts);
+            setIsReturnModalOpen(false);
+          }}
+          itemName={selectedReturn.detail.inventaris.nama}
+          totalQuantity={selectedReturn.detail.jumlah}
+          initialCounts={{
+            baik: selectedReturn.detail.jumlah_baik ?? 0,
+            rusak_ringan: selectedReturn.detail.jumlah_rusak_ringan ?? 0,
+            rusak_berat: selectedReturn.detail.jumlah_rusak_berat ?? 0,
+          }}
+        />
+      )}
     </div>
   );
 }

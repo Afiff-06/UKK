@@ -10,6 +10,7 @@ interface ReturnConditionModalProps {
     onConfirm: (counts: { baik: number; rusak_ringan: number; rusak_berat: number }) => Promise<void>;
     itemName: string;
     totalQuantity: number;
+    initialCounts?: { baik: number; rusak_ringan: number; rusak_berat: number };
 }
 
 export default function ReturnConditionModal({
@@ -17,12 +18,13 @@ export default function ReturnConditionModal({
     onClose,
     onConfirm,
     itemName,
-    totalQuantity
+    totalQuantity,
+    initialCounts
 }: ReturnConditionModalProps) {
     const [counts, setCounts] = useState({
-        baik: totalQuantity,
-        rusak_ringan: 0,
-        rusak_berat: 0
+        baik: initialCounts?.baik ?? 0,
+        rusak_ringan: initialCounts?.rusak_ringan ?? 0,
+        rusak_berat: initialCounts?.rusak_berat ?? 0
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -30,14 +32,14 @@ export default function ReturnConditionModal({
     useEffect(() => {
         if (isOpen) {
             setCounts({
-                baik: totalQuantity,
-                rusak_ringan: 0,
-                rusak_berat: 0
+                baik: initialCounts?.baik ?? 0,
+                rusak_ringan: initialCounts?.rusak_ringan ?? 0,
+                rusak_berat: initialCounts?.rusak_berat ?? 0
             });
             setError(null);
             setIsSubmitting(false);
         }
-    }, [isOpen, totalQuantity]);
+    }, [isOpen, totalQuantity, initialCounts]);
 
     const currentTotal = counts.baik + counts.rusak_ringan + counts.rusak_berat;
     const isReady = currentTotal === totalQuantity;

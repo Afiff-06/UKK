@@ -32,6 +32,10 @@ interface RiwayatPeminjamanRow {
     detail_peminjaman?: {
         id: string;
         jumlah: number;
+        status_pengembalian: string | null;
+        jumlah_baik: number | null;
+        jumlah_rusak_ringan: number | null;
+        jumlah_rusak_berat: number | null;
         inventaris?: { id_inventaris: string; nama: string; kode_inventaris: number }[] | { id_inventaris: string; nama: string; kode_inventaris: number } | null;
     }[] | null;
 }
@@ -48,6 +52,10 @@ interface RiwayatPeminjaman {
     detail_peminjaman: {
         id: string;
         jumlah: number;
+        status_pengembalian: string | null;
+        jumlah_baik: number | null;
+        jumlah_rusak_ringan: number | null;
+        jumlah_rusak_berat: number | null;
         inventaris: { id_inventaris: string; nama: string; kode_inventaris: number };
     }[];
 }
@@ -132,6 +140,10 @@ export default function Peminjaman() {
                     detail_peminjaman (
                         id,
                         jumlah,
+                        status_pengembalian,
+                        jumlah_baik,
+                        jumlah_rusak_ringan,
+                        jumlah_rusak_berat,
                         inventaris:id_inventaris (id_inventaris, nama, kode_inventaris)
                     )
                 `)
@@ -158,6 +170,10 @@ export default function Peminjaman() {
                         return {
                             id: detail.id,
                             jumlah: detail.jumlah,
+                            status_pengembalian: detail.status_pengembalian,
+                            jumlah_baik: detail.jumlah_baik,
+                            jumlah_rusak_ringan: detail.jumlah_rusak_ringan,
+                            jumlah_rusak_berat: detail.jumlah_rusak_berat,
                             inventaris: inventaris ?? { id_inventaris: "", nama: "", kode_inventaris: 0 },
                         };
                     }),
@@ -392,7 +408,16 @@ export default function Peminjaman() {
                                                             {item.detail_peminjaman.map((detail) => (
                                                                 <div key={detail.id} className="flex items-center gap-2">
                                                                     <Package size={14} className="text-gray-400" />
-                                                                    <span className="text-sm font-medium">{detail.inventaris?.nama}</span>
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-sm font-medium">{detail.inventaris?.nama}</span>
+                                                                        {(detail.jumlah_baik || detail.jumlah_rusak_ringan || detail.jumlah_rusak_berat) ? (
+                                                                            <div className="flex gap-1 mt-0.5">
+                                                                                {detail.jumlah_baik ? <span className="text-[9px] bg-green-50 text-green-600 px-1.5 py-0.5 rounded font-bold">{detail.jumlah_baik} B</span> : null}
+                                                                                {detail.jumlah_rusak_ringan ? <span className="text-[9px] bg-yellow-50 text-yellow-600 px-1.5 py-0.5 rounded font-bold">{detail.jumlah_rusak_ringan} RR</span> : null}
+                                                                                {detail.jumlah_rusak_berat ? <span className="text-[9px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded font-bold">{detail.jumlah_rusak_berat} RB</span> : null}
+                                                                            </div>
+                                                                        ) : null}
+                                                                    </div>
                                                                 </div>
                                                             ))}
                                                         </div>
