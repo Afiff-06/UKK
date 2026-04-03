@@ -451,7 +451,7 @@ export default function Peminjaman() {
                                                         {item.status === 'konfirmasi_pengembalian' && (
                                                             <button
                                                                 onClick={() => router.push("/operator/pengembalian")}
-                                                                className="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-md shadow-slate-100 flex items-center gap-2 mx-auto"
+                                                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-md shadow-blue-100 flex items-center gap-2 mx-auto"
                                                             >
                                                                 <RotateCcw size={16} />
                                                                 Buka Pengembalian

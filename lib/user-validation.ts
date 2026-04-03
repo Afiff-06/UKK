@@ -92,7 +92,7 @@ export function findDuplicateField({
 export function buildDuplicateFieldMessage(field: DuplicateField | string) {
   const messages: Record<string, string> = {
     nama: "Nama sudah terdaftar.",
-    username: "Username sudah terdaftar.",
+    username: "Nama pengguna sudah terdaftar.",
     no_telp: "Nomor telepon sudah terdaftar.",
     nip: "NIP sudah terdaftar.",
     nisn: "NISN sudah terdaftar.",
@@ -103,9 +103,9 @@ export function buildDuplicateFieldMessage(field: DuplicateField | string) {
 
 export function getLoginErrorMessage(reason: "username_not_found" | "missing_email" | "invalid_password") {
   const messages = {
-    username_not_found: "Username tidak ditemukan.",
+    username_not_found: "Nama pengguna tidak ditemukan.",
     missing_email: "Akun tidak memiliki email untuk login. Hubungi admin.",
-    invalid_password: "Username atau password salah.",
+    invalid_password: "Nama pengguna atau kata sandi salah.",
   };
 
   return messages[reason];

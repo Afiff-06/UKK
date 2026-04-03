@@ -106,7 +106,7 @@ test("only non-admin managed users can be deleted", () => {
 });
 
 test("login errors map to friendly messages", () => {
-  assert.match(getLoginErrorMessage("username_not_found"), /Username/i);
+  assert.match(getLoginErrorMessage("username_not_found"), /Nama pengguna/i);
   assert.match(getLoginErrorMessage("missing_email"), /email/i);
-  assert.match(getLoginErrorMessage("invalid_password"), /password/i);
+  assert.match(getLoginErrorMessage("invalid_password"), /Nama pengguna|kata sandi/i);
 });

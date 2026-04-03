@@ -240,7 +240,7 @@ export default function ManajemenPengguna() {
         }
 
         if (!formData.username.trim()) {
-            await showWarning("Perhatian", "Username wajib diisi.");
+            await showWarning("Perhatian", "Nama pengguna wajib diisi.");
             return false;
         }
 
@@ -422,7 +422,7 @@ export default function ManajemenPengguna() {
                                 <thead className="bg-gray-50 text-gray-500 text-sm">
                                     <tr>
                                         <th className="px-6 py-4 text-left">Nama</th>
-                                        <th className="px-6 py-4 text-left">Username</th>
+                                        <th className="px-6 py-4 text-left">Nama Pengguna</th>
                                         <th className="px-6 py-4 text-left">Identitas</th>
                                         <th className="px-6 py-4 text-left">Peran</th>
                                         <th className="px-6 py-4 text-left">Aksi</th>
@@ -536,15 +536,15 @@ export default function ManajemenPengguna() {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm text-gray-500 mb-1">Username</label>
+                                    <label className="block text-sm text-gray-500 mb-1">Nama Pengguna</label>
                                     <input
                                         className="w-full border rounded-xl px-4 py-3"
-                                        placeholder="username"
+                                        placeholder="nama pengguna"
                                         value={formData.username}
                                         onChange={(event) => updateField("username", event.target.value.toLowerCase())}
                                     />
                                     <p className="text-xs text-gray-400 mt-1">
-                                        Email login internal dibuat otomatis dari username.
+                                        Email login internal dibuat otomatis dari nama pengguna.
                                     </p>
                                 </div>
                                 <div>

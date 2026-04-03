@@ -101,12 +101,12 @@ export function LoginForm() {
             {/* Username */}
             <div className="mb-5">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Username
+                Nama Pengguna
               </label>
               <input
                 type="text"
                 id="username"
-                placeholder="Masukkan username"
+                placeholder="Masukkan nama pengguna"
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -172,7 +172,7 @@ export function LoginForm() {
 
           {/* Help Text */}
           <p className="text-center text-sm text-gray-500">
-            Gunakan username dan kata sandi yang terdaftar
+            Gunakan nama pengguna dan kata sandi yang terdaftar
           </p>
         </div>
       </div>

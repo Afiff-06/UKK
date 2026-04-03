@@ -76,18 +76,18 @@ export function ForgotPasswordForm({
           <CardHeader>
             <CardTitle className="text-2xl">Atur Ulang Kata Sandi</CardTitle>
             <CardDescription>
-              Masukkan username Anda dan kami akan mengirimkan tautan untuk mengatur ulang kata sandi Anda
+              Masukkan nama pengguna Anda dan kami akan mengirimkan tautan untuk mengatur ulang kata sandi Anda
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleForgotPassword}>
               <div className="flex flex-col gap-6">
                 <div className="grid gap-2">
-                  <Label htmlFor="username">Username</Label>
+                  <Label htmlFor="username">Nama Pengguna</Label>
                   <Input
                     id="username"
                     type="text"
-                    placeholder="masukkan username"
+                    placeholder="masukkan nama pengguna"
                     required
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
