@@ -89,15 +89,7 @@ export default function PeminjamanForm() {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                // Fetch all items that have non-Baik condition records
-                const { data: damagedRecords } = await supabase
-                    .from('inventaris')
-                    .select('nama')
-                    .neq('kondisi', 'Baik');
-                
-                const damagedNames = new Set((damagedRecords || []).map(r => r.nama));
-
-                // Fetch inventaris with 'Baik' condition
+                // Fetch inventaris with 'Baik' condition and available stock
                 const { data: invData } = await supabase
                     .from('inventaris')
                     .select('id_inventaris, nama, jumlah, kode_inventaris')
@@ -105,8 +97,7 @@ export default function PeminjamanForm() {
                     .gt('jumlah', 0)
                     .order('nama');
 
-                // Filter out items that have any damaged record with the same name
-                const filteredInv = (invData || []).filter(item => !damagedNames.has(item.nama));
+                const filteredInv = invData || [];
 
                 // Fetch borrower users from tb_user
                 const { data: usrData } = await supabase

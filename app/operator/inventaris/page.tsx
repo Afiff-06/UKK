@@ -9,6 +9,7 @@ import Header from "@/components/header";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import InventarisTable, { type InventarisTableItem } from "@/components/inventaris-table";
+import { showConfirmDanger, showError, showSuccess } from "@/lib/swal";
 
 interface Inventaris extends InventarisTableItem {
     id_jenis: string;
@@ -159,7 +160,11 @@ export default function InventarisPage() {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Apakah Anda yakin ingin menghapus barang ini?')) return;
+        const confirmed = await showConfirmDanger(
+            'Hapus Barang?',
+            'Barang yang dihapus tidak dapat dikembalikan. Data peminjaman terkait juga akan dihapus.',
+        );
+        if (!confirmed) return;
 
         try {
             const { error } = await supabase
@@ -168,9 +173,11 @@ export default function InventarisPage() {
                 .eq('id_inventaris', id);
 
             if (error) throw error;
+            await showSuccess('Berhasil!', 'Barang berhasil dihapus.');
             fetchData();
         } catch (error) {
             console.error('Error deleting item:', error);
+            await showError('Gagal Menghapus', 'Terjadi kesalahan saat menghapus barang.');
         }
     };
 

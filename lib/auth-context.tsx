@@ -18,6 +18,7 @@ interface UserProfile {
     nisn?: string | null;
     kelas?: string | null;
     konsentrasi_keahlian?: string | null;
+    created_at?: string | null;
 }
 
 interface AuthContextType {
@@ -51,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                 const { data, error } = await supabase
                     .from('tb_user')
-                    .select('id, nama, username, role, email, blocked_until, nip, no_telp, alamat, nisn, kelas, konsentrasi_keahlian')
+                    .select('id, nama, username, role, email, blocked_until, nip, no_telp, alamat, nisn, kelas, konsentrasi_keahlian, created_at')
                     .eq('id', sessionUser.id)
                     .single();
 
@@ -80,7 +81,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                             alamat: data.alamat,
                             nisn: data.nisn,
                             kelas: data.kelas,
-                            konsentrasi_keahlian: data.konsentrasi_keahlian
+                            konsentrasi_keahlian: data.konsentrasi_keahlian,
+                            created_at: data.created_at
                         };
                         setUser(newUser);
                         setRole(data.role);
